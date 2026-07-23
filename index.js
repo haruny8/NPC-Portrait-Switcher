@@ -226,6 +226,16 @@ function getOrCreatePanel() {
     const img = document.createElement('img');
     img.id = 'npc-ps-portrait-img';
     container.appendChild(img);
+    let swipeStartX = null;
+    container.addEventListener('pointerdown', event => {
+        swipeStartX = event.clientX;
+    });
+    container.addEventListener('pointerup', event => {
+        if (swipeStartX === null) return;
+        const distance = event.clientX - swipeStartX;
+        swipeStartX = null;
+        if (Math.abs(distance) >= 40) stepPortrait(distance < 0 ? 1 : -1);
+    });
     modal.appendChild(container);
 
     const navBar = document.createElement('div');
@@ -234,18 +244,18 @@ function getOrCreatePanel() {
 
     const prevBtn = document.createElement('button');
     prevBtn.id = 'npc-ps-prev';
-    prevBtn.title = 'Previous expression';
+    prevBtn.title = 'Previous portrait';
     prevBtn.innerHTML = '&#8249;';
-    prevBtn.addEventListener('click', () => stepExpression(-1));
+    prevBtn.addEventListener('click', () => stepPortrait(-1));
 
     const navLabel = document.createElement('span');
     navLabel.id = 'npc-ps-nav-label';
 
     const nextBtn = document.createElement('button');
     nextBtn.id = 'npc-ps-next';
-    nextBtn.title = 'Next expression';
+    nextBtn.title = 'Next portrait';
     nextBtn.innerHTML = '&#8250;';
-    nextBtn.addEventListener('click', () => stepExpression(1));
+    nextBtn.addEventListener('click', () => stepPortrait(1));
 
     navBar.appendChild(prevBtn);
     navBar.appendChild(navLabel);
@@ -457,14 +467,33 @@ function updateNavLabel() {
 
     const npcState = sceneNPCs.get(activeEntryIdx);
     const images = getPortraitImages(activeEntryIdx);
+    const sceneEntries = [...sceneNPCs.keys()];
+    const activeScenePosition = sceneEntries.indexOf(activeEntryIdx) + 1;
+    const entry = getSettings().entries[activeEntryIdx];
+    const npcLabel = entry?.label || splitKeywords(entry?.keyword)[0] || 'NPC';
 
-    if (!npcState || images.length <= 1) {
+    if (!npcState || (images.length <= 1 && sceneEntries.length <= 1)) {
         nav.classList.add('npc-ps-nav-hidden');
         label.textContent = '';
     } else {
         nav.classList.remove('npc-ps-nav-hidden');
-        label.textContent = `${npcState.imageIdx + 1} / ${images.length}`;
+        label.textContent = sceneEntries.length > 1
+            ? `${npcLabel} ${activeScenePosition} / ${sceneEntries.length}`
+            : `${npcState.imageIdx + 1} / ${images.length}`;
     }
+}
+
+function stepPortrait(direction) {
+    if (sceneNPCs.size > 1) {
+        const sceneEntries = [...sceneNPCs.keys()];
+        const currentPosition = sceneEntries.indexOf(activeEntryIdx);
+        const nextPosition = (currentPosition + direction + sceneEntries.length) % sceneEntries.length;
+        pinnedEntryIdx = sceneEntries[nextPosition];
+        switchActiveNPC(pinnedEntryIdx, { open: true });
+        return;
+    }
+
+    stepExpression(direction);
 }
 
 function stepExpression(direction) {

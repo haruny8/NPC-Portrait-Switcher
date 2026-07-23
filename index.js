@@ -780,9 +780,11 @@ function escapeHtml(str) {
 
 function initSettingsUI() {
     const settings = getSettings();
-    document.getElementById('npc-portrait-panel')?.remove();
+    document.getElementById('npc-portrait-switcher-settings')?.remove();
 
     const panel = document.createElement('div');
+    panel.id = 'npc-portrait-switcher-settings';
+    panel.dataset.extensionName = 'NPC Portrait Switcher';
     panel.innerHTML = buildSettingsHTML();
     const target = document.getElementById('extensions_settings2') ?? document.getElementById('extensions_settings');
     if (!target) { console.warn('[NPC Portrait Switcher] Could not find extensions settings container.'); return; }

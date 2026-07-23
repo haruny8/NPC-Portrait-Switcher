@@ -721,9 +721,9 @@ function buildSettingsHTML() {
 <div id="npc-portrait-panel" style="margin-bottom:10px;">
   <div id="npc-portrait-header" class="npc-ps-header">
     <b>NPC Portrait Switcher</b>
-    <span id="npc-portrait-chevron" class="npc-ps-chevron">▼</span>
+    <span id="npc-portrait-chevron" class="npc-ps-chevron">▲</span>
   </div>
-  <div id="npc-portrait-body" class="npc-ps-body" style="display:none;">
+  <div id="npc-portrait-body" class="npc-ps-body" style="display:block;">
 
     <div class="npc-ps-row">
       <label class="npc-ps-label">

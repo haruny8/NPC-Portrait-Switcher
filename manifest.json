@@ -1,5 +1,4 @@
 {
-    "name": "NPC Portrait Switcher",
     "display_name": "NPC Portrait Switcher",
     "loading_order": 10,
     "js": "index.js",

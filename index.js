@@ -12,6 +12,7 @@ const TRAY_MAX = 8; // max NPCs tracked at once
 const defaultSettings = Object.freeze({
     enabled: true,
     entries: [],
+    entriesByCharacter: {},
     entriesMigrated: false,
     stickyReplies: 0,
     caseSensitive: false,
@@ -44,30 +45,29 @@ function getSettings() {
             stored[key] = structuredClone(defaultSettings[key]);
         }
     }
-    const character = context.characters?.[context.characterId];
-    if (!character) return stored;
+    const characterId = context.characterId;
+    if (characterId === undefined || characterId === null) return stored;
 
-    character.data ??= {};
-    character.data.extensions ??= {};
-    const characterSettings = character.data.extensions[MODULE_NAME] ??= {};
-
-    if (!stored.entriesMigrated && !Array.isArray(characterSettings.entries)) {
-        characterSettings.entries = structuredClone(stored.entries ?? []);
-        stored.entries = [];
+    const entryStoreKey = String(characterId);
+    if (!Array.isArray(stored.entriesByCharacter[entryStoreKey])) {
+        const legacyEntries = context.characters?.[characterId]?.data?.extensions?.[MODULE_NAME]?.entries;
+        stored.entriesByCharacter[entryStoreKey] = structuredClone(
+            Array.isArray(legacyEntries)
+                ? legacyEntries
+                : (!stored.entriesMigrated ? stored.entries ?? [] : []),
+        );
         stored.entriesMigrated = true;
+        stored.entries = [];
         context.saveSettingsDebounced();
-        context.saveCharacterDebounced?.();
-    } else if (!Array.isArray(characterSettings.entries)) {
-        characterSettings.entries = [];
     }
 
     return new Proxy(stored, {
         get(target, property) {
-            return property === 'entries' ? characterSettings.entries : target[property];
+            return property === 'entries' ? target.entriesByCharacter[entryStoreKey] : target[property];
         },
         set(target, property, value) {
             if (property === 'entries') {
-                characterSettings.entries = value;
+                target.entriesByCharacter[entryStoreKey] = value;
             } else {
                 target[property] = value;
             }
@@ -78,17 +78,7 @@ function getSettings() {
 
 function saveSettings() {
     const context = SillyTavern.getContext();
-    const settings = getSettings();
-    const character = context.characters?.[context.characterId];
-    if (character) {
-        character.data ??= {};
-        character.data.extensions ??= {};
-        character.data.extensions[MODULE_NAME] = {
-            ...character.data.extensions[MODULE_NAME],
-            entries: settings.entries,
-        };
-        context.saveCharacterDebounced?.();
-    }
+    getSettings();
     context.saveSettingsDebounced();
 }
 

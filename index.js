@@ -12,6 +12,7 @@ const TRAY_MAX = 8; // max NPCs tracked at once
 const defaultSettings = Object.freeze({
     enabled: true,
     entries: [],
+    entriesMigrated: false,
     stickyReplies: 0,
     caseSensitive: false,
     autoClose: true,
@@ -32,7 +33,8 @@ let pinnedEntryIdx = null;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSettings() {
-    const { extensionSettings } = SillyTavern.getContext();
+    const context = SillyTavern.getContext();
+    const { extensionSettings } = context;
     if (!extensionSettings[MODULE_NAME]) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
@@ -42,11 +44,52 @@ function getSettings() {
             stored[key] = structuredClone(defaultSettings[key]);
         }
     }
-    return extensionSettings[MODULE_NAME];
+    const character = context.characters?.[context.characterId];
+    if (!character) return stored;
+
+    character.data ??= {};
+    character.data.extensions ??= {};
+    const characterSettings = character.data.extensions[MODULE_NAME] ??= {};
+
+    if (!stored.entriesMigrated && !Array.isArray(characterSettings.entries)) {
+        characterSettings.entries = structuredClone(stored.entries ?? []);
+        stored.entries = [];
+        stored.entriesMigrated = true;
+        context.saveSettingsDebounced();
+        context.saveCharacterDebounced?.();
+    } else if (!Array.isArray(characterSettings.entries)) {
+        characterSettings.entries = [];
+    }
+
+    return new Proxy(stored, {
+        get(target, property) {
+            return property === 'entries' ? characterSettings.entries : target[property];
+        },
+        set(target, property, value) {
+            if (property === 'entries') {
+                characterSettings.entries = value;
+            } else {
+                target[property] = value;
+            }
+            return true;
+        },
+    });
 }
 
 function saveSettings() {
-    SillyTavern.getContext().saveSettingsDebounced();
+    const context = SillyTavern.getContext();
+    const settings = getSettings();
+    const character = context.characters?.[context.characterId];
+    if (character) {
+        character.data ??= {};
+        character.data.extensions ??= {};
+        character.data.extensions[MODULE_NAME] = {
+            ...character.data.extensions[MODULE_NAME],
+            entries: settings.entries,
+        };
+        context.saveCharacterDebounced?.();
+    }
+    context.saveSettingsDebounced();
 }
 
 // ── Crop / file helpers ───────────────────────────────────────────────────────
@@ -508,6 +551,16 @@ function scanAndDisplay(messageText) {
     }
 }
 
+function scanCurrentChat() {
+    const { chat } = SillyTavern.getContext();
+    if (!Array.isArray(chat)) return;
+
+    clearAllPortraits();
+    for (const message of chat) {
+        if (!message?.is_user) scanAndDisplay(message?.mes ?? '');
+    }
+}
+
 // ── Settings UI ───────────────────────────────────────────────────────────────
 
 function buildSettingsHTML() {
@@ -546,6 +599,10 @@ function buildSettingsHTML() {
         Case-sensitive matching
       </label>
     </div>
+
+        <div class="npc-ps-row">
+            <button id="npc_ps_scan_chat" class="menu_button" title="Scan all AI messages in the current chat">Scan current chat</button>
+        </div>
 
     <hr style="margin:10px 0;opacity:0.2;" />
 
@@ -763,6 +820,8 @@ function initSettingsUI() {
     caseCb.checked = settings.caseSensitive;
     caseCb.addEventListener('change', e => { settings.caseSensitive = e.target.checked; saveSettings(); });
 
+    document.getElementById('npc_ps_scan_chat').addEventListener('click', () => scanCurrentChat());
+
     getOrCreatePanel();
     renderEntries();
 }
@@ -826,5 +885,6 @@ document.addEventListener('click', e => {
 
     eventSource.on(event_types.CHAT_CHANGED, () => {
         clearAllPortraits();
+        renderEntries();
     });
 })();

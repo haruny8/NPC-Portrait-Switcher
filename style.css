@@ -75,41 +75,53 @@
 */
 
 #npc-ps-portrait-panel {
+    /* --sheldWidth can be unset on narrow/mobile layouts. Without a fallback,
+       this whole calc() becomes invalid and `width` silently falls back to
+       its initial value (auto) — which is why the portrait used to expand
+       to fill the entire screen on mobile. The , 100vw fallback keeps the
+       gap at a sane 0 instead of blowing up. */
     --maxWidth: calc(90vh * 0.666);
-    --rightGapWidth: calc((100vw - var(--sheldWidth)) / 2);
+    --rightGapWidth: calc((100vw - var(--sheldWidth, 100vw)) / 2);
     --rightPosition: max(0px, calc((var(--rightGapWidth) - var(--maxWidth)) / 2));
 
+    /* Outer root is always rendered now — it just holds the tray and the
+       modal, neither of which take up space unless they have content /
+       the .visible class. This is what lets the tray stay visible on
+       mobile independent of whether the big picture is open. */
     padding: 0;
     border: 0;
     background-color: transparent;
-
-    /* Fill the right gap, same as native fills the left gap */
-    width: var(--rightGapWidth);
-    max-width: var(--maxWidth);
-
     position: absolute;
     right: var(--rightPosition);
     left: auto;
     bottom: 0;
-
+    width: var(--rightGapWidth);
+    max-width: var(--maxWidth);
     height: auto;
-    max-height: 90vh !important;
-    align-items: start;
-
-    display: none;
+    max-height: 90vh;
+    display: block;
     z-index: 29;
+    pointer-events: none;
+}
 
+#npc-ps-portrait-panel > * {
+    pointer-events: auto;
+}
+
+/* ── Modal wrapper — the actual "big picture", shown only when opened ── */
+#npc-ps-modal {
+    display: none;
     opacity: 0;
     transition: opacity 0.3s ease;
 }
 
-#npc-ps-portrait-panel.visible {
+#npc-ps-modal.visible {
     display: block;
     opacity: 1;
 }
 
 /* Control bar with close button — mirrors .panelControlBar on .zoomed_avatar */
-#npc-ps-portrait-panel .panelControlBar {
+#npc-ps-modal .panelControlBar {
     position: absolute;
     right: 5px;
     top: 5px;
@@ -121,8 +133,13 @@
     opacity: 0;
 }
 
-#npc-ps-portrait-panel:hover .panelControlBar {
+#npc-ps-modal:hover .panelControlBar {
     opacity: 1;
+}
+
+/* Backdrop behind the modal — only used/shown on mobile (see media query) */
+#npc-ps-backdrop {
+    display: none;
 }
 
 /* Close ✕ — reuses ST's .dragClose styling */
@@ -257,7 +274,7 @@
     display: none !important;
 }
 
-#npc-ps-portrait-panel:hover #npc-ps-nav:not(.npc-ps-nav-hidden) {
+#npc-ps-modal:hover #npc-ps-nav:not(.npc-ps-nav-hidden) {
     opacity: 1;
     pointer-events: auto;
 }
@@ -345,4 +362,67 @@
     object-position: top center;
     display: block;
     pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE — tap-to-view instead of auto-popup
+   The tray becomes a small fixed icon strip that's always available
+   whenever NPCs are in scene. The big picture only appears when a tray
+   icon is tapped, as a centered popup with a dismissible backdrop —
+   never full-screen, never automatic.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    #npc-ps-portrait-panel {
+        position: static;
+        width: auto;
+        max-width: none;
+        height: auto;
+        max-height: none;
+    }
+
+    #npc-ps-tray {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 60px; /* sits above the message input bar */
+        z-index: 3500;
+        background: rgba(20, 21, 35, 0.75);
+        backdrop-filter: blur(4px);
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .npc-ps-tray-icon {
+        width: 38px;
+        height: 38px;
+    }
+
+    #npc-ps-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 4000;
+    }
+
+    #npc-ps-backdrop.visible {
+        display: block;
+    }
+
+    #npc-ps-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(82vw, 380px);
+        max-width: min(82vw, 380px);
+        max-height: 75vh;
+        z-index: 4001;
+    }
+
+    /* No hover on touch — controls stay reachable without hovering */
+    #npc-ps-modal .panelControlBar,
+    #npc-ps-nav:not(.npc-ps-nav-hidden) {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }

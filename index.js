@@ -131,6 +131,32 @@ function getPortraitImages(entryIdx) {
 
 // ── Panel DOM ─────────────────────────────────────────────────────────────────
 
+// Panel layout is intentionally split in two:
+//   #npc-ps-portrait-panel  → outer root, always rendered. Holds the tray.
+//   #npc-ps-modal           → inner "big picture" wrapper, only shown when
+//                             explicitly opened (tray tap, or auto on desktop).
+// This split is what lets the tray stay visible as a small icon strip on
+// mobile without the full-size portrait forcing itself open.
+
+function isMobileView() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function openPortraitModal() {
+    getOrCreatePanel();
+    document.getElementById('npc-ps-modal')?.classList.add('visible');
+    document.getElementById('npc-ps-backdrop')?.classList.add('visible');
+}
+
+function closePortraitModal() {
+    document.getElementById('npc-ps-modal')?.classList.remove('visible');
+    document.getElementById('npc-ps-backdrop')?.classList.remove('visible');
+}
+
+function isPortraitModalOpen() {
+    return document.getElementById('npc-ps-modal')?.classList.contains('visible') ?? false;
+}
+
 function getOrCreatePanel() {
     let panel = document.getElementById('npc-ps-portrait-panel');
     if (panel) return panel;
@@ -138,12 +164,15 @@ function getOrCreatePanel() {
     panel = document.createElement('div');
     panel.id = 'npc-ps-portrait-panel';
 
-    // ── Tray (avatar icons) ──
+    // ── Tray (avatar icons) — direct child of the root, always independent ──
     const tray = document.createElement('div');
     tray.id = 'npc-ps-tray';
     panel.appendChild(tray);
 
-    // ── Close button ──
+    // ── Modal wrapper — everything that makes up the "big picture" ──
+    const modal = document.createElement('div');
+    modal.id = 'npc-ps-modal';
+
     const controlBar = document.createElement('div');
     controlBar.className = 'panelControlBar';
     const closeBtn = document.createElement('div');
@@ -151,20 +180,18 @@ function getOrCreatePanel() {
     closeBtn.className = 'dragClose';
     closeBtn.title = 'Close portrait';
     closeBtn.innerHTML = '✕';
-    closeBtn.addEventListener('click', () => clearAllPortraits());
+    closeBtn.addEventListener('click', () => closePortraitModal());
     controlBar.appendChild(closeBtn);
-    panel.appendChild(controlBar);
+    modal.appendChild(controlBar);
 
-    // ── Portrait image ──
     const container = document.createElement('div');
     container.id = 'npc-ps-portrait-container';
     container.className = 'zoomed_avatar_container';
     const img = document.createElement('img');
     img.id = 'npc-ps-portrait-img';
     container.appendChild(img);
-    panel.appendChild(container);
+    modal.appendChild(container);
 
-    // ── Nav arrows ──
     const navBar = document.createElement('div');
     navBar.id = 'npc-ps-nav';
     navBar.classList.add('npc-ps-nav-hidden');
@@ -187,9 +214,19 @@ function getOrCreatePanel() {
     navBar.appendChild(prevBtn);
     navBar.appendChild(navLabel);
     navBar.appendChild(nextBtn);
-    panel.appendChild(navBar);
+    modal.appendChild(navBar);
 
+    panel.appendChild(modal);
     document.body.appendChild(panel);
+
+    // ── Backdrop — mobile only (see CSS); tap outside the modal to close ──
+    if (!document.getElementById('npc-ps-backdrop')) {
+        const backdrop = document.createElement('div');
+        backdrop.id = 'npc-ps-backdrop';
+        backdrop.addEventListener('click', () => closePortraitModal());
+        document.body.appendChild(backdrop);
+    }
+
     return panel;
 }
 
@@ -227,19 +264,25 @@ function rebuildTray() {
 
         icon.addEventListener('click', () => {
             pinnedEntryIdx = entryIdx; // user manually selected this NPC
-            switchActiveNPC(entryIdx);
+            switchActiveNPC(entryIdx, { open: true }); // tapping a tray icon always opens the big picture
         });
 
         tray.appendChild(icon);
     }
 
-    // Show/hide panel based on whether anything is in scene
-    panel.classList.toggle('visible', sceneNPCs.size > 0);
+    // NOTE: the big picture's visibility is no longer tied to tray
+    // population — it's controlled explicitly via openPortraitModal()/
+    // closePortraitModal(). This is what stops the portrait from forcing
+    // itself open the moment an NPC enters the scene on mobile.
 }
 
 // ── Portrait display ──────────────────────────────────────────────────────────
 
-function switchActiveNPC(entryIdx) {
+// `open` controls whether the big picture is actually shown:
+//   - true  → open it (tray tap, or desktop auto-follow)
+//   - false → just update which NPC is "active" and preload the image,
+//             without popping the modal open (mobile auto-follow)
+function switchActiveNPC(entryIdx, { open = true } = {}) {
     const npcState = sceneNPCs.get(entryIdx);
     if (!npcState) return;
 
@@ -253,7 +296,9 @@ function switchActiveNPC(entryIdx) {
     const img = document.getElementById('npc-ps-portrait-img');
     if (img) img.src = src;
 
-    getOrCreatePanel().classList.add('visible');
+    getOrCreatePanel();
+    if (open) openPortraitModal();
+
     rebuildTray(); // refresh active highlight
     updateNavLabel();
 }
@@ -301,10 +346,9 @@ function removeNPCFromScene(entryIdx) {
         activeEntryIdx = null;
         pinnedEntryIdx = null;
         if (sceneNPCs.size > 0) {
-            switchActiveNPC(sceneNPCs.keys().next().value);
+            switchActiveNPC(sceneNPCs.keys().next().value, { open: isPortraitModalOpen() });
         } else {
-            const panel = document.getElementById('npc-ps-portrait-panel');
-            if (panel) panel.classList.remove('visible');
+            closePortraitModal();
         }
     }
 
@@ -315,8 +359,7 @@ function clearAllPortraits() {
     sceneNPCs.clear();
     activeEntryIdx = null;
     pinnedEntryIdx = null;
-    const panel = document.getElementById('npc-ps-portrait-panel');
-    if (panel) panel.classList.remove('visible');
+    closePortraitModal();
     rebuildTray();
 }
 
@@ -430,32 +473,38 @@ function scanAndDisplay(messageText) {
 
     // If scene is now empty, hide everything
     if (sceneNPCs.size === 0) {
-        const panel = document.getElementById('npc-ps-portrait-panel');
-        if (panel) panel.classList.remove('visible');
+        closePortraitModal();
         rebuildTray();
         return;
     }
 
     rebuildTray();
 
+    // On desktop, auto-scanning still pops the big picture open like before.
+    // On mobile it never forces the modal open on its own — it only updates
+    // which NPC is "active" (tray highlight + preloaded image). If the user
+    // already had the modal open (tapped a tray icon), it keeps following
+    // along live so it doesn't go stale while they're looking at it.
+    const shouldAutoOpen = !isMobileView() || isPortraitModalOpen();
+
     // ── Determine which NPC to show in main portrait ──
     if (matchedThisMessage.size > 0) {
         if (pinnedEntryIdx !== null && sceneNPCs.has(pinnedEntryIdx)) {
             // User pinned someone — keep showing them (expression may have updated)
-            switchActiveNPC(pinnedEntryIdx);
+            switchActiveNPC(pinnedEntryIdx, { open: shouldAutoOpen });
         } else {
             // Auto-follow: show the first NPC matched in this message
             const firstMatched = [...matchedThisMessage].find(idx => sceneNPCs.has(idx));
             if (firstMatched !== undefined) {
-                switchActiveNPC(firstMatched);
+                switchActiveNPC(firstMatched, { open: shouldAutoOpen });
             }
         }
     } else if (activeEntryIdx !== null && sceneNPCs.has(activeEntryIdx)) {
         // No new matches but active NPC is still in scene (on sticky) — keep showing
-        switchActiveNPC(activeEntryIdx);
+        switchActiveNPC(activeEntryIdx, { open: shouldAutoOpen });
     } else if (sceneNPCs.size > 0) {
         // Active NPC was removed — fall back to first remaining in scene
-        switchActiveNPC(sceneNPCs.keys().next().value);
+        switchActiveNPC(sceneNPCs.keys().next().value, { open: shouldAutoOpen });
     }
 }
 

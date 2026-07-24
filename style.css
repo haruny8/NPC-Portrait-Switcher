@@ -351,8 +351,8 @@
 /* Active NPC gets a bright ring — matches ST's is_active outline colour */
 .npc-ps-tray-icon.active {
     opacity: 1;
-    border-color: rgb(88, 182, 0);
-    box-shadow: 0 0 8px rgba(88, 182, 0, 0.6);
+    border-color: #DEA1C3;
+    box-shadow: 0 0 8px rgba(222, 161, 195, 0.6);
 }
 
 .npc-ps-tray-icon img {

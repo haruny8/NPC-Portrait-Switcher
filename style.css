@@ -187,22 +187,8 @@
     cursor: grabbing;
 }
 
-#npc-ps-zoom-bar {
-    position: absolute;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 6px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.62);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
-    z-index: 2;
-}
-
-#npc-ps-zoom-bar button {
+#npc-ps-zoom-out,
+#npc-ps-zoom-in {
     width: 28px;
     height: 28px;
     padding: 0;
@@ -215,21 +201,15 @@
     cursor: pointer;
 }
 
-#npc-ps-zoom-bar button:hover:not(:disabled) {
+#npc-ps-zoom-out:hover:not(:disabled),
+#npc-ps-zoom-in:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.32);
 }
 
-#npc-ps-zoom-bar button:disabled {
+#npc-ps-zoom-out:disabled,
+#npc-ps-zoom-in:disabled {
     opacity: 0.35;
     cursor: default;
-}
-
-#npc-ps-zoom-label {
-    min-width: 42px;
-    color: #fff;
-    font-size: 0.75em;
-    text-align: center;
-    user-select: none;
 }
 
 /* ── NPC entry card (wraps header row + expressions) ── */
@@ -326,12 +306,17 @@
     pointer-events: none;
 }
 
-/* Hidden when only one image available */
-#npc-ps-nav.npc-ps-nav-hidden {
-    display: none !important;
+.npc-ps-nav-side {
+    display: flex;
+    gap: 6px;
 }
 
-#npc-ps-modal:hover #npc-ps-nav:not(.npc-ps-nav-hidden) {
+#npc-ps-nav.npc-ps-nav-hidden #npc-ps-prev,
+#npc-ps-nav.npc-ps-nav-hidden #npc-ps-next {
+    display: none;
+}
+
+#npc-ps-modal:hover #npc-ps-nav {
     opacity: 1;
     pointer-events: auto;
 }

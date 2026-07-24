@@ -83,7 +83,7 @@
     --maxWidth: calc(90vh * 0.666);
     --rightGapWidth: calc((100vw - var(--sheldWidth, 100vw)) / 2);
     --rightPosition: max(0px, calc((var(--rightGapWidth) - var(--maxWidth)) / 2));
-    
+
     /* Outer root is always rendered now — it just holds the tray and the
        modal, neither of which take up space unless they have content /
        the .visible class. This is what lets the tray stay visible on
@@ -95,8 +95,14 @@
     right: calc(var(--rightPosition) + 5px);
     left: auto;
     bottom: 6px;
-    width: calc(var(--rightGapWidth) - 6px);
-    max-width: var(--maxWidth);
+
+    /* Ceiling stays exactly as before (gap-based, capped by the native
+       portrait max-width) — but width itself is now shrink-to-fit, so the
+       box only grows as wide as it needs to for however many tray icons
+       (or the open portrait) are actually inside it. */
+    width: fit-content;
+    max-width: min(calc(var(--rightGapWidth) - 6px), var(--maxWidth));
+
     height: auto;
     max-height: 90vh;
     display: block;
@@ -370,7 +376,11 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 7px 6px;
-    width: 100%;
+    /* No explicit width — the tray shrinks to fit however many icons are
+       actually in it. The panel above is shrink-to-fit too, so the whole
+       box (tray, and modal when open) grows and shrinks with content,
+       right up to the existing max-width/max-height ceiling. */
+    max-width: 100%;
     box-sizing: border-box;
     border: 1px solid rgba(196, 181, 253, 0.42);
     border-radius: 10px;
@@ -485,7 +495,6 @@
         touch-action: none;
         pointer-events: auto;
         transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-        animation: npc-ps-portrait-alert 1.6s ease-in-out infinite;
     }
 
     #npc-ps-mobile-button:hover {
@@ -505,17 +514,6 @@
 
     #npc-ps-mobile-button:active {
         cursor: grabbing;
-    }
-
-    @keyframes npc-ps-portrait-alert {
-        50% {
-            border-color: rgba(196, 181, 253, 0.7);
-            color: #d4c2ff;
-            box-shadow:
-                0 0 0 6px rgba(196, 181, 253, 0),
-                0 4px 20px rgba(0, 0, 0, 0.3);
-            filter: brightness(1.2);
-        }
     }
 
     #npc-ps-backdrop {

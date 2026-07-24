@@ -764,14 +764,32 @@ function scanAndDisplay(messageText) {
     }
 }
 
-function scanCurrentChat() {
-    const { chat } = SillyTavern.getContext();
-    if (!Array.isArray(chat)) return;
+function getLatestMessagePair(chat) {
+    if (!Array.isArray(chat)) return [];
 
+    const latestAssistantIndex = [...chat].findLastIndex(message => message && !message.is_user);
+    if (latestAssistantIndex < 0) return [];
+
+    const latestUserIndex = [...chat].findLastIndex(
+        (message, index) => index < latestAssistantIndex && message?.is_user,
+    );
+    const pair = latestUserIndex >= 0
+        ? [chat[latestUserIndex], chat[latestAssistantIndex]]
+        : [chat[latestAssistantIndex]];
+    return pair.filter(Boolean);
+}
+
+function scanLatestMessagePair() {
+    const { chat } = SillyTavern.getContext();
+    const latestMessages = getLatestMessagePair(chat);
     clearAllPortraits();
-    for (const message of chat) {
-        if (!message?.is_user) scanAndDisplay(message?.mes ?? '');
+    for (const message of latestMessages) {
+        scanAndDisplay(message.mes ?? '');
     }
+}
+
+function scanCurrentChat() {
+    scanLatestMessagePair();
 }
 
 function addWandButton() {
@@ -786,7 +804,7 @@ function addWandButton() {
     const button = document.createElement('div');
     button.id = 'npc-ps-wand-button';
     button.className = 'list-group-item flex-container flexGap5';
-    button.title = 'Scan all AI messages in the current chat';
+    button.title = 'Scan the latest user and assistant messages';
 
     const icon = document.createElement('div');
     icon.className = 'fa-solid fa-images extensionsMenuExtensionButton';
@@ -839,7 +857,7 @@ function buildSettingsHTML() {
     </div>
 
         <div class="npc-ps-row">
-            <button id="npc_ps_scan_chat" class="menu_button" title="Scan all AI messages in the current chat">Scan current chat</button>
+            <button id="npc_ps_scan_chat" class="menu_button" title="Scan the latest user and assistant messages">Scan latest messages</button>
         </div>
 
     <hr style="margin:10px 0;opacity:0.2;" />
@@ -1121,7 +1139,7 @@ document.addEventListener('click', e => {
         const { chat } = SillyTavern.getContext();
         const message = chat[messageId];
         if (!message || message.is_user) return;
-        scanAndDisplay(message.mes ?? '');
+        scanLatestMessagePair();
     });
 
     eventSource.on(event_types.CHAT_CHANGED, () => {

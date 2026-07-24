@@ -83,7 +83,7 @@
     --maxWidth: calc(90vh * 0.666);
     --rightGapWidth: calc((100vw - var(--sheldWidth, 100vw)) / 2);
     --rightPosition: max(0px, calc((var(--rightGapWidth) - var(--maxWidth)) / 2));
-
+    
     /* Outer root is always rendered now — it just holds the tray and the
        modal, neither of which take up space unless they have content /
        the .visible class. This is what lets the tray stay visible on
@@ -92,10 +92,10 @@
     border: 0;
     background-color: transparent;
     position: absolute;
-    right: var(--rightPosition);
+    right: calc(var(--rightPosition) + 5px);
     left: auto;
-    bottom: 0;
-    width: var(--rightGapWidth);
+    bottom: 6px;
+    width: calc(var(--rightGapWidth) - 6px);
     max-width: var(--maxWidth);
     height: auto;
     max-height: 90vh;

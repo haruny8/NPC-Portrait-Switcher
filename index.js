@@ -12,9 +12,12 @@ const TRAY_MAX = 8; // max NPCs tracked at once
 const defaultSettings = Object.freeze({
     enabled: true,
     entries: [],
+    entriesByCharacter: {},
+    entriesMigrated: false,
     stickyReplies: 0,
     caseSensitive: false,
     autoClose: true,
+    mobileButtonPosition: null,
 });
 
 // ── Runtime state (cleared on chat change) ────────────────────────────────────
@@ -29,10 +32,13 @@ let activeEntryIdx = null;
 // entryIdx of the manually selected NPC (null = auto-follow keywords)
 let pinnedEntryIdx = null;
 
+let removeMobileButtonViewportListeners = null;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSettings() {
-    const { extensionSettings } = SillyTavern.getContext();
+    const context = SillyTavern.getContext();
+    const { extensionSettings } = context;
     if (!extensionSettings[MODULE_NAME]) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
@@ -42,11 +48,41 @@ function getSettings() {
             stored[key] = structuredClone(defaultSettings[key]);
         }
     }
-    return extensionSettings[MODULE_NAME];
+    const characterId = context.characterId;
+    if (characterId === undefined || characterId === null) return stored;
+
+    const entryStoreKey = String(characterId);
+    if (!Array.isArray(stored.entriesByCharacter[entryStoreKey])) {
+        const legacyEntries = context.characters?.[characterId]?.data?.extensions?.[MODULE_NAME]?.entries;
+        stored.entriesByCharacter[entryStoreKey] = structuredClone(
+            Array.isArray(legacyEntries)
+                ? legacyEntries
+                : (!stored.entriesMigrated ? stored.entries ?? [] : []),
+        );
+        stored.entriesMigrated = true;
+        stored.entries = [];
+        context.saveSettingsDebounced();
+    }
+
+    return new Proxy(stored, {
+        get(target, property) {
+            return property === 'entries' ? target.entriesByCharacter[entryStoreKey] : target[property];
+        },
+        set(target, property, value) {
+            if (property === 'entries') {
+                target.entriesByCharacter[entryStoreKey] = value;
+            } else {
+                target[property] = value;
+            }
+            return true;
+        },
+    });
 }
 
 function saveSettings() {
-    SillyTavern.getContext().saveSettingsDebounced();
+    const context = SillyTavern.getContext();
+    getSettings();
+    context.saveSettingsDebounced();
 }
 
 // ── Crop / file helpers ───────────────────────────────────────────────────────
@@ -131,6 +167,32 @@ function getPortraitImages(entryIdx) {
 
 // ── Panel DOM ─────────────────────────────────────────────────────────────────
 
+// Panel layout is intentionally split in two:
+//   #npc-ps-portrait-panel  → outer root, always rendered. Holds the tray.
+//   #npc-ps-modal           → inner "big picture" wrapper, only shown when
+//                             explicitly opened (tray tap, or auto on desktop).
+// This split is what lets the tray stay visible as a small icon strip on
+// mobile without the full-size portrait forcing itself open.
+
+function isMobileView() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function openPortraitModal() {
+    getOrCreatePanel();
+    document.getElementById('npc-ps-modal')?.classList.add('visible');
+    document.getElementById('npc-ps-backdrop')?.classList.add('visible');
+}
+
+function closePortraitModal() {
+    document.getElementById('npc-ps-modal')?.classList.remove('visible');
+    document.getElementById('npc-ps-backdrop')?.classList.remove('visible');
+}
+
+function isPortraitModalOpen() {
+    return document.getElementById('npc-ps-modal')?.classList.contains('visible') ?? false;
+}
+
 function getOrCreatePanel() {
     let panel = document.getElementById('npc-ps-portrait-panel');
     if (panel) return panel;
@@ -138,12 +200,15 @@ function getOrCreatePanel() {
     panel = document.createElement('div');
     panel.id = 'npc-ps-portrait-panel';
 
-    // ── Tray (avatar icons) ──
+    // ── Tray (avatar icons) — direct child of the root, always independent ──
     const tray = document.createElement('div');
     tray.id = 'npc-ps-tray';
     panel.appendChild(tray);
 
-    // ── Close button ──
+    // ── Modal wrapper — everything that makes up the "big picture" ──
+    const modal = document.createElement('div');
+    modal.id = 'npc-ps-modal';
+
     const controlBar = document.createElement('div');
     controlBar.className = 'panelControlBar';
     const closeBtn = document.createElement('div');
@@ -151,54 +216,173 @@ function getOrCreatePanel() {
     closeBtn.className = 'dragClose';
     closeBtn.title = 'Close portrait';
     closeBtn.innerHTML = '✕';
-    closeBtn.addEventListener('click', () => clearAllPortraits());
+    closeBtn.addEventListener('click', () => closePortraitModal());
     controlBar.appendChild(closeBtn);
-    panel.appendChild(controlBar);
+    modal.appendChild(controlBar);
 
-    // ── Portrait image ──
     const container = document.createElement('div');
     container.id = 'npc-ps-portrait-container';
     container.className = 'zoomed_avatar_container';
     const img = document.createElement('img');
     img.id = 'npc-ps-portrait-img';
     container.appendChild(img);
-    panel.appendChild(container);
+    let swipeStartX = null;
+    container.addEventListener('pointerdown', event => {
+        swipeStartX = event.clientX;
+    });
+    container.addEventListener('pointerup', event => {
+        if (swipeStartX === null) return;
+        const distance = event.clientX - swipeStartX;
+        swipeStartX = null;
+        if (Math.abs(distance) >= 40) stepPortrait(distance < 0 ? 1 : -1);
+    });
+    modal.appendChild(container);
 
-    // ── Nav arrows ──
     const navBar = document.createElement('div');
     navBar.id = 'npc-ps-nav';
     navBar.classList.add('npc-ps-nav-hidden');
 
     const prevBtn = document.createElement('button');
     prevBtn.id = 'npc-ps-prev';
-    prevBtn.title = 'Previous expression';
+    prevBtn.title = 'Previous portrait';
     prevBtn.innerHTML = '&#8249;';
-    prevBtn.addEventListener('click', () => stepExpression(-1));
+    prevBtn.addEventListener('click', () => stepPortrait(-1));
 
     const navLabel = document.createElement('span');
     navLabel.id = 'npc-ps-nav-label';
 
     const nextBtn = document.createElement('button');
     nextBtn.id = 'npc-ps-next';
-    nextBtn.title = 'Next expression';
+    nextBtn.title = 'Next portrait';
     nextBtn.innerHTML = '&#8250;';
-    nextBtn.addEventListener('click', () => stepExpression(1));
+    nextBtn.addEventListener('click', () => stepPortrait(1));
 
     navBar.appendChild(prevBtn);
     navBar.appendChild(navLabel);
     navBar.appendChild(nextBtn);
-    panel.appendChild(navBar);
+    modal.appendChild(navBar);
 
+    panel.appendChild(modal);
     document.body.appendChild(panel);
+
+    // ── Backdrop — mobile only (see CSS); tap outside the modal to close ──
+    if (!document.getElementById('npc-ps-backdrop')) {
+        const backdrop = document.createElement('div');
+        backdrop.id = 'npc-ps-backdrop';
+        backdrop.addEventListener('click', () => closePortraitModal());
+        document.body.appendChild(backdrop);
+    }
+
     return panel;
 }
 
 // ── Tray rendering ────────────────────────────────────────────────────────────
 
+function positionMobilePortraitButton(button, position) {
+    const viewport = window.visualViewport;
+    const inset = 8;
+    const width = button.offsetWidth;
+    const height = button.offsetHeight;
+    const leftEdge = (viewport?.offsetLeft ?? 0) + inset;
+    const topEdge = (viewport?.offsetTop ?? 0) + inset;
+    const rightEdge = (viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth) - width - inset;
+    const bottomEdge = (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight) - height - inset;
+    const left = Math.min(Math.max(leftEdge, position.left), Math.max(leftEdge, rightEdge));
+    const top = Math.min(Math.max(topEdge, position.top), Math.max(topEdge, bottomEdge));
+
+    button.style.left = `${left}px`;
+    button.style.top = `${top}px`;
+    button.style.right = 'auto';
+    button.style.bottom = 'auto';
+}
+
+function makeMobilePortraitButton() {
+    const button = document.createElement('button');
+    button.id = 'npc-ps-mobile-button';
+    button.type = 'button';
+    button.title = 'Show active NPC portrait';
+    button.setAttribute('aria-label', 'Show active NPC portrait');
+    button.innerHTML = '<i class="fa-solid fa-images"></i>';
+
+    const settings = getSettings();
+    const savedPosition = settings.mobileButtonPosition;
+    if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
+        positionMobilePortraitButton(button, savedPosition);
+    }
+
+    const restoreSavedPosition = () => {
+        const position = settings.mobileButtonPosition;
+        if (position && Number.isFinite(position.left) && Number.isFinite(position.top)) {
+            positionMobilePortraitButton(button, position);
+        }
+    };
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', restoreSavedPosition);
+    viewport?.addEventListener('scroll', restoreSavedPosition);
+    window.addEventListener('resize', restoreSavedPosition);
+    removeMobileButtonViewportListeners = () => {
+        viewport?.removeEventListener('resize', restoreSavedPosition);
+        viewport?.removeEventListener('scroll', restoreSavedPosition);
+        window.removeEventListener('resize', restoreSavedPosition);
+    };
+
+    let dragStart = null;
+    let moved = false;
+
+    button.addEventListener('pointerdown', event => {
+        dragStart = {
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            left: button.getBoundingClientRect().left,
+            top: button.getBoundingClientRect().top,
+        };
+        moved = false;
+        button.setPointerCapture(event.pointerId);
+    });
+
+    button.addEventListener('pointermove', event => {
+        if (!dragStart || event.pointerId !== dragStart.pointerId) return;
+
+        const position = {
+            left: dragStart.left + event.clientX - dragStart.x,
+            top: dragStart.top + event.clientY - dragStart.y,
+        };
+        moved = moved || Math.abs(event.clientX - dragStart.x) > 4 || Math.abs(event.clientY - dragStart.y) > 4;
+        positionMobilePortraitButton(button, position);
+    });
+
+    button.addEventListener('pointerup', event => {
+        if (!dragStart || event.pointerId !== dragStart.pointerId) return;
+        button.releasePointerCapture(event.pointerId);
+        if (moved) {
+            settings.mobileButtonPosition = {
+                left: Math.round(button.getBoundingClientRect().left),
+                top: Math.round(button.getBoundingClientRect().top),
+            };
+            saveSettings();
+        }
+        dragStart = null;
+    });
+
+    button.addEventListener('click', event => {
+        if (moved) {
+            event.preventDefault();
+            return;
+        }
+        const entryIdx = activeEntryIdx ?? sceneNPCs.keys().next().value;
+        if (entryIdx !== undefined) switchActiveNPC(entryIdx, { open: true });
+    });
+
+    return button;
+}
+
 function rebuildTray() {
     const panel = getOrCreatePanel();
     const tray = document.getElementById('npc-ps-tray');
     if (!tray) return;
+    removeMobileButtonViewportListeners?.();
+    removeMobileButtonViewportListeners = null;
     tray.innerHTML = '';
 
     if (sceneNPCs.size === 0) {
@@ -207,6 +391,11 @@ function rebuildTray() {
     }
 
     tray.style.display = 'flex';
+
+    if (isMobileView()) {
+        tray.appendChild(makeMobilePortraitButton());
+        return;
+    }
 
     const settings = getSettings();
     for (const [entryIdx] of sceneNPCs) {
@@ -227,19 +416,25 @@ function rebuildTray() {
 
         icon.addEventListener('click', () => {
             pinnedEntryIdx = entryIdx; // user manually selected this NPC
-            switchActiveNPC(entryIdx);
+            switchActiveNPC(entryIdx, { open: true }); // tapping a tray icon always opens the big picture
         });
 
         tray.appendChild(icon);
     }
 
-    // Show/hide panel based on whether anything is in scene
-    panel.classList.toggle('visible', sceneNPCs.size > 0);
+    // NOTE: the big picture's visibility is no longer tied to tray
+    // population — it's controlled explicitly via openPortraitModal()/
+    // closePortraitModal(). This is what stops the portrait from forcing
+    // itself open the moment an NPC enters the scene on mobile.
 }
 
 // ── Portrait display ──────────────────────────────────────────────────────────
 
-function switchActiveNPC(entryIdx) {
+// `open` controls whether the big picture is actually shown:
+//   - true  → open it (tray tap, or desktop auto-follow)
+//   - false → just update which NPC is "active" and preload the image,
+//             without popping the modal open (mobile auto-follow)
+function switchActiveNPC(entryIdx, { open = true } = {}) {
     const npcState = sceneNPCs.get(entryIdx);
     if (!npcState) return;
 
@@ -253,7 +448,9 @@ function switchActiveNPC(entryIdx) {
     const img = document.getElementById('npc-ps-portrait-img');
     if (img) img.src = src;
 
-    getOrCreatePanel().classList.add('visible');
+    getOrCreatePanel();
+    if (open) openPortraitModal();
+
     rebuildTray(); // refresh active highlight
     updateNavLabel();
 }
@@ -270,14 +467,33 @@ function updateNavLabel() {
 
     const npcState = sceneNPCs.get(activeEntryIdx);
     const images = getPortraitImages(activeEntryIdx);
+    const sceneEntries = [...sceneNPCs.keys()];
+    const activeScenePosition = sceneEntries.indexOf(activeEntryIdx) + 1;
+    const entry = getSettings().entries[activeEntryIdx];
+    const npcLabel = entry?.label || splitKeywords(entry?.keyword)[0] || 'NPC';
 
-    if (!npcState || images.length <= 1) {
+    if (!npcState || (images.length <= 1 && sceneEntries.length <= 1)) {
         nav.classList.add('npc-ps-nav-hidden');
         label.textContent = '';
     } else {
         nav.classList.remove('npc-ps-nav-hidden');
-        label.textContent = `${npcState.imageIdx + 1} / ${images.length}`;
+        label.textContent = sceneEntries.length > 1
+            ? `${npcLabel} ${activeScenePosition} / ${sceneEntries.length}`
+            : `${npcState.imageIdx + 1} / ${images.length}`;
     }
+}
+
+function stepPortrait(direction) {
+    if (sceneNPCs.size > 1) {
+        const sceneEntries = [...sceneNPCs.keys()];
+        const currentPosition = sceneEntries.indexOf(activeEntryIdx);
+        const nextPosition = (currentPosition + direction + sceneEntries.length) % sceneEntries.length;
+        pinnedEntryIdx = sceneEntries[nextPosition];
+        switchActiveNPC(pinnedEntryIdx, { open: true });
+        return;
+    }
+
+    stepExpression(direction);
 }
 
 function stepExpression(direction) {
@@ -301,10 +517,9 @@ function removeNPCFromScene(entryIdx) {
         activeEntryIdx = null;
         pinnedEntryIdx = null;
         if (sceneNPCs.size > 0) {
-            switchActiveNPC(sceneNPCs.keys().next().value);
+            switchActiveNPC(sceneNPCs.keys().next().value, { open: isPortraitModalOpen() });
         } else {
-            const panel = document.getElementById('npc-ps-portrait-panel');
-            if (panel) panel.classList.remove('visible');
+            closePortraitModal();
         }
     }
 
@@ -315,8 +530,7 @@ function clearAllPortraits() {
     sceneNPCs.clear();
     activeEntryIdx = null;
     pinnedEntryIdx = null;
-    const panel = document.getElementById('npc-ps-portrait-panel');
-    if (panel) panel.classList.remove('visible');
+    closePortraitModal();
     rebuildTray();
 }
 
@@ -430,33 +644,74 @@ function scanAndDisplay(messageText) {
 
     // If scene is now empty, hide everything
     if (sceneNPCs.size === 0) {
-        const panel = document.getElementById('npc-ps-portrait-panel');
-        if (panel) panel.classList.remove('visible');
+        closePortraitModal();
         rebuildTray();
         return;
     }
 
     rebuildTray();
 
+    // On desktop, auto-scanning still pops the big picture open like before.
+    // On mobile it never forces the modal open on its own — it only updates
+    // which NPC is "active" (tray highlight + preloaded image). If the user
+    // already had the modal open (tapped a tray icon), it keeps following
+    // along live so it doesn't go stale while they're looking at it.
+    const shouldAutoOpen = !isMobileView() || isPortraitModalOpen();
+
     // ── Determine which NPC to show in main portrait ──
     if (matchedThisMessage.size > 0) {
         if (pinnedEntryIdx !== null && sceneNPCs.has(pinnedEntryIdx)) {
             // User pinned someone — keep showing them (expression may have updated)
-            switchActiveNPC(pinnedEntryIdx);
+            switchActiveNPC(pinnedEntryIdx, { open: shouldAutoOpen });
         } else {
             // Auto-follow: show the first NPC matched in this message
             const firstMatched = [...matchedThisMessage].find(idx => sceneNPCs.has(idx));
             if (firstMatched !== undefined) {
-                switchActiveNPC(firstMatched);
+                switchActiveNPC(firstMatched, { open: shouldAutoOpen });
             }
         }
     } else if (activeEntryIdx !== null && sceneNPCs.has(activeEntryIdx)) {
         // No new matches but active NPC is still in scene (on sticky) — keep showing
-        switchActiveNPC(activeEntryIdx);
+        switchActiveNPC(activeEntryIdx, { open: shouldAutoOpen });
     } else if (sceneNPCs.size > 0) {
         // Active NPC was removed — fall back to first remaining in scene
-        switchActiveNPC(sceneNPCs.keys().next().value);
+        switchActiveNPC(sceneNPCs.keys().next().value, { open: shouldAutoOpen });
     }
+}
+
+function scanCurrentChat() {
+    const { chat } = SillyTavern.getContext();
+    if (!Array.isArray(chat)) return;
+
+    clearAllPortraits();
+    for (const message of chat) {
+        if (!message?.is_user) scanAndDisplay(message?.mes ?? '');
+    }
+}
+
+function addWandButton() {
+    if (document.getElementById('npc-ps-wand-button')) return;
+
+    const wandMenu = document.getElementById('extensionsMenu');
+    if (!wandMenu) {
+        console.warn('[NPC Portrait Switcher] Could not find the Extensions Wand menu.');
+        return;
+    }
+
+    const button = document.createElement('div');
+    button.id = 'npc-ps-wand-button';
+    button.className = 'list-group-item flex-container flexGap5';
+    button.title = 'Scan all AI messages in the current chat';
+
+    const icon = document.createElement('div');
+    icon.className = 'fa-solid fa-images extensionsMenuExtensionButton';
+
+    const label = document.createElement('span');
+    label.textContent = 'NPC Portraits';
+
+    button.append(icon, label);
+    button.addEventListener('click', scanCurrentChat);
+    wandMenu.appendChild(button);
 }
 
 // ── Settings UI ───────────────────────────────────────────────────────────────
@@ -466,9 +721,9 @@ function buildSettingsHTML() {
 <div id="npc-portrait-panel" style="margin-bottom:10px;">
   <div id="npc-portrait-header" class="npc-ps-header">
     <b>NPC Portrait Switcher</b>
-    <span id="npc-portrait-chevron" class="npc-ps-chevron">▼</span>
+    <span id="npc-portrait-chevron" class="npc-ps-chevron">▲</span>
   </div>
-  <div id="npc-portrait-body" class="npc-ps-body" style="display:none;">
+  <div id="npc-portrait-body" class="npc-ps-body" style="display:block;">
 
     <div class="npc-ps-row">
       <label class="npc-ps-label">
@@ -497,6 +752,10 @@ function buildSettingsHTML() {
         Case-sensitive matching
       </label>
     </div>
+
+        <div class="npc-ps-row">
+            <button id="npc_ps_scan_chat" class="menu_button" title="Scan all AI messages in the current chat">Scan current chat</button>
+        </div>
 
     <hr style="margin:10px 0;opacity:0.2;" />
 
@@ -674,9 +933,11 @@ function escapeHtml(str) {
 
 function initSettingsUI() {
     const settings = getSettings();
-    document.getElementById('npc-portrait-panel')?.remove();
+    document.getElementById('npc-portrait-switcher-settings')?.remove();
 
     const panel = document.createElement('div');
+    panel.id = 'npc-portrait-switcher-settings';
+    panel.dataset.extensionName = 'NPC Portrait Switcher';
     panel.innerHTML = buildSettingsHTML();
     const target = document.getElementById('extensions_settings2') ?? document.getElementById('extensions_settings');
     if (!target) { console.warn('[NPC Portrait Switcher] Could not find extensions settings container.'); return; }
@@ -714,7 +975,10 @@ function initSettingsUI() {
     caseCb.checked = settings.caseSensitive;
     caseCb.addEventListener('change', e => { settings.caseSensitive = e.target.checked; saveSettings(); });
 
+    document.getElementById('npc_ps_scan_chat').addEventListener('click', () => scanCurrentChat());
+
     getOrCreatePanel();
+    addWandButton();
     renderEntries();
 }
 
@@ -777,5 +1041,6 @@ document.addEventListener('click', e => {
 
     eventSource.on(event_types.CHAT_CHANGED, () => {
         clearAllPortraits();
+        renderEntries();
     });
 })();

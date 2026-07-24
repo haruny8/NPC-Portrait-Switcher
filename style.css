@@ -75,41 +75,53 @@
 */
 
 #npc-ps-portrait-panel {
+    /* --sheldWidth can be unset on narrow/mobile layouts. Without a fallback,
+       this whole calc() becomes invalid and `width` silently falls back to
+       its initial value (auto) — which is why the portrait used to expand
+       to fill the entire screen on mobile. The , 100vw fallback keeps the
+       gap at a sane 0 instead of blowing up. */
     --maxWidth: calc(90vh * 0.666);
-    --rightGapWidth: calc((100vw - var(--sheldWidth)) / 2);
+    --rightGapWidth: calc((100vw - var(--sheldWidth, 100vw)) / 2);
     --rightPosition: max(0px, calc((var(--rightGapWidth) - var(--maxWidth)) / 2));
 
+    /* Outer root is always rendered now — it just holds the tray and the
+       modal, neither of which take up space unless they have content /
+       the .visible class. This is what lets the tray stay visible on
+       mobile independent of whether the big picture is open. */
     padding: 0;
     border: 0;
     background-color: transparent;
-
-    /* Fill the right gap, same as native fills the left gap */
-    width: var(--rightGapWidth);
-    max-width: var(--maxWidth);
-
     position: absolute;
     right: var(--rightPosition);
     left: auto;
     bottom: 0;
-
+    width: var(--rightGapWidth);
+    max-width: var(--maxWidth);
     height: auto;
-    max-height: 90vh !important;
-    align-items: start;
-
-    display: none;
+    max-height: 90vh;
+    display: block;
     z-index: 29;
+    pointer-events: none;
+}
 
+#npc-ps-portrait-panel > * {
+    pointer-events: auto;
+}
+
+/* ── Modal wrapper — the actual "big picture", shown only when opened ── */
+#npc-ps-modal {
+    display: none;
     opacity: 0;
     transition: opacity 0.3s ease;
 }
 
-#npc-ps-portrait-panel.visible {
+#npc-ps-modal.visible {
     display: block;
     opacity: 1;
 }
 
 /* Control bar with close button — mirrors .panelControlBar on .zoomed_avatar */
-#npc-ps-portrait-panel .panelControlBar {
+#npc-ps-modal .panelControlBar {
     position: absolute;
     right: 5px;
     top: 5px;
@@ -121,8 +133,13 @@
     opacity: 0;
 }
 
-#npc-ps-portrait-panel:hover .panelControlBar {
+#npc-ps-modal:hover .panelControlBar {
     opacity: 1;
+}
+
+/* Backdrop behind the modal — only used/shown on mobile (see media query) */
+#npc-ps-backdrop {
+    display: none;
 }
 
 /* Close ✕ — reuses ST's .dragClose styling */
@@ -257,7 +274,7 @@
     display: none !important;
 }
 
-#npc-ps-portrait-panel:hover #npc-ps-nav:not(.npc-ps-nav-hidden) {
+#npc-ps-modal:hover #npc-ps-nav:not(.npc-ps-nav-hidden) {
     opacity: 1;
     pointer-events: auto;
 }
@@ -334,8 +351,8 @@
 /* Active NPC gets a bright ring — matches ST's is_active outline colour */
 .npc-ps-tray-icon.active {
     opacity: 1;
-    border-color: rgb(88, 182, 0);
-    box-shadow: 0 0 8px rgba(88, 182, 0, 0.6);
+    border-color: #DEA1C3;
+    box-shadow: 0 0 8px rgba(222, 161, 195, 0.6);
 }
 
 .npc-ps-tray-icon img {
@@ -345,4 +362,124 @@
     object-position: top center;
     display: block;
     pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+    MOBILE — tap-to-view instead of auto-popup
+    One draggable activity button replaces the desktop avatar tray. The big
+    picture only appears when it is tapped, as a centered popup with a
+    dismissible backdrop — never full-screen, never automatic.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    #npc-ps-portrait-panel {
+        position: static;
+        width: auto;
+        max-width: none;
+        height: auto;
+        max-height: none;
+    }
+
+    #npc-ps-tray {
+        position: absolute;
+        inset: 0;
+        z-index: 9000;
+        width: auto;
+        padding: 0;
+        pointer-events: none;
+    }
+
+    #npc-ps-mobile-button {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
+        max-width: 30px !important;
+        max-height: 30px !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        line-height: 30px !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        border: 1px solid rgba(90, 83, 120, 0.9) !important;
+        border-radius: 50% !important;
+        background: rgba(30, 25, 41, 0.9) !important;
+        color: #9E7E7F !important;
+        box-shadow:
+            inset 0 1px 2px rgba(196, 181, 253, 0.2),
+            inset 0 -2px 4px rgba(0, 0, 0, 0.2),
+            0 4px 20px rgba(0, 0, 0, 0.3);
+        cursor: grab;
+        font-size: 12px !important;
+        touch-action: none;
+        pointer-events: auto;
+        transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        animation: npc-ps-portrait-alert 1.6s ease-in-out infinite;
+    }
+
+    #npc-ps-mobile-button:hover {
+        background: rgba(45, 37, 61, 0.8);
+        border-color: rgba(196, 181, 253, 0.4);
+        color: #d4c2ff;
+        box-shadow:
+            0 0 15px rgba(196, 181, 253, 0.25),
+            0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    #npc-ps-mobile-button i {
+        width: 12px;
+        height: 12px;
+        line-height: 12px;
+    }
+
+    #npc-ps-mobile-button:active {
+        cursor: grabbing;
+    }
+
+    @keyframes npc-ps-portrait-alert {
+        50% {
+            border-color: rgba(196, 181, 253, 0.7);
+            color: #d4c2ff;
+            box-shadow:
+                0 0 0 6px rgba(196, 181, 253, 0),
+                0 4px 20px rgba(0, 0, 0, 0.3);
+            filter: brightness(1.2);
+        }
+    }
+
+    #npc-ps-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 4000;
+    }
+
+    #npc-ps-backdrop.visible {
+        display: block;
+    }
+
+    #npc-ps-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(82vw, 380px);
+        max-width: min(82vw, 380px);
+        max-height: 75vh;
+        z-index: 4001;
+    }
+
+    #npc-ps-portrait-container,
+    #npc-ps-portrait-img {
+        max-height: 75vh;
+    }
+
+    /* No hover on touch — controls stay reachable without hovering */
+    #npc-ps-modal .panelControlBar,
+    #npc-ps-nav:not(.npc-ps-nav-hidden) {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }

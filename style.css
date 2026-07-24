@@ -324,9 +324,30 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 6px 4px;
+    max-height: 120px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 7px 6px;
     width: 100%;
     box-sizing: border-box;
+    border: 1px solid rgba(196, 181, 253, 0.42);
+    border-radius: 10px;
+    background: var(--black70a, rgba(19, 20, 31, 0.8));
+    box-shadow:
+        inset 0 1px 0 rgba(222, 161, 195, 0.18),
+        inset 0 0 14px rgba(196, 181, 253, 0.08),
+        0 3px 12px rgba(0, 0, 0, 0.3);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(222, 161, 195, 0.55) transparent;
+}
+
+#npc-ps-tray::-webkit-scrollbar {
+    width: 5px;
+}
+
+#npc-ps-tray::-webkit-scrollbar-thumb {
+    background: rgba(222, 161, 195, 0.55);
+    border-radius: 4px;
 }
 
 .npc-ps-tray-icon {
@@ -351,7 +372,7 @@
 /* Active NPC gets a bright ring — matches ST's is_active outline colour */
 .npc-ps-tray-icon.active {
     opacity: 1;
-    border-color: #DEA1C3;
+    border-color: var(--SmartThemeQuoteColor, #DEA1C3);
     box-shadow: 0 0 8px rgba(222, 161, 195, 0.6);
 }
 
@@ -384,7 +405,13 @@
         inset: 0;
         z-index: 9000;
         width: auto;
+        max-height: none;
+        overflow: visible;
         padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
         pointer-events: none;
     }
 

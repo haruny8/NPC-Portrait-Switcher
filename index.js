@@ -7,7 +7,6 @@
  */
 
 const MODULE_NAME = 'npc_portrait_switcher';
-const TRAY_MAX = 8; // max NPCs tracked at once
 
 const defaultSettings = Object.freeze({
     enabled: true,
@@ -583,11 +582,6 @@ function scanAndDisplay(messageText) {
             state.imageIdx = imageIdx;
             state.replyCounter = 0; // Reset reply counter since they were mentioned
         } else {
-            // Respect tray cap for new additions
-            if (sceneNPCs.size >= TRAY_MAX) {
-                console.log(`[NPC Portrait Switcher] Tray full (${TRAY_MAX}), ignoring entryIdx=${entryIdx}`);
-                continue;
-            }
             // Add to scene
             sceneNPCs.set(entryIdx, { 
                 entryIdx, 

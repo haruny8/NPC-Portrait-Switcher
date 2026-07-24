@@ -162,9 +162,12 @@
 
 /* Container — mirrors .zoomed_avatar_container */
 #npc-ps-portrait-container {
+    position: relative;
     width: 100%;
     max-height: 90vh;
     max-width: 90dvh;
+    overflow: hidden;
+    touch-action: none;
 }
 
 /* Image — mirrors .zoomed_avatar img exactly */
@@ -173,6 +176,60 @@
     width: 100%;
     object-fit: contain !important;
     border-radius: 10px;
+    display: block;
+    transform-origin: center center;
+    user-select: none;
+    -webkit-user-drag: none;
+    cursor: grab;
+}
+
+#npc-ps-portrait-img:active {
+    cursor: grabbing;
+}
+
+#npc-ps-zoom-bar {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.62);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    z-index: 2;
+}
+
+#npc-ps-zoom-bar button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#npc-ps-zoom-bar button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.32);
+}
+
+#npc-ps-zoom-bar button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+#npc-ps-zoom-label {
+    min-width: 42px;
+    color: #fff;
+    font-size: 0.75em;
+    text-align: center;
+    user-select: none;
 }
 
 /* ── NPC entry card (wraps header row + expressions) ── */
@@ -492,15 +549,15 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: min(82vw, 380px);
-        max-width: min(82vw, 380px);
-        max-height: 75vh;
+        width: min(92vw, 520px);
+        max-width: min(92vw, 520px);
+        max-height: 88vh;
         z-index: 4001;
     }
 
     #npc-ps-portrait-container,
     #npc-ps-portrait-img {
-        max-height: 75vh;
+        max-height: 88vh;
     }
 
     /* No hover on touch — controls stay reachable without hovering */

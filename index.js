@@ -225,16 +225,77 @@ function getOrCreatePanel() {
     const img = document.createElement('img');
     img.id = 'npc-ps-portrait-img';
     container.appendChild(img);
-    let swipeStartX = null;
+
+    const zoomBar = document.createElement('div');
+    zoomBar.id = 'npc-ps-zoom-bar';
+    const zoomOutBtn = document.createElement('button');
+    zoomOutBtn.id = 'npc-ps-zoom-out';
+    zoomOutBtn.type = 'button';
+    zoomOutBtn.title = 'Zoom out';
+    zoomOutBtn.setAttribute('aria-label', 'Zoom out');
+    zoomOutBtn.innerHTML = '&#8722;';
+    const zoomLabel = document.createElement('span');
+    zoomLabel.id = 'npc-ps-zoom-label';
+    const zoomInBtn = document.createElement('button');
+    zoomInBtn.id = 'npc-ps-zoom-in';
+    zoomInBtn.type = 'button';
+    zoomInBtn.title = 'Zoom in';
+    zoomInBtn.setAttribute('aria-label', 'Zoom in');
+    zoomInBtn.innerHTML = '+';
+    zoomBar.append(zoomOutBtn, zoomLabel, zoomInBtn);
+    container.appendChild(zoomBar);
+
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let panStart = null;
+
+    const updateImageTransform = () => {
+        img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+        zoomOutBtn.disabled = zoom <= 1;
+        zoomInBtn.disabled = zoom >= 3;
+    };
+
+    const resetImageView = () => {
+        zoom = 1;
+        panX = 0;
+        panY = 0;
+        updateImageTransform();
+    };
+    container.npcPsResetImageView = resetImageView;
+
+    const changeZoom = amount => {
+        zoom = Math.min(3, Math.max(1, Number((zoom + amount).toFixed(2))));
+        if (zoom === 1) {
+            panX = 0;
+            panY = 0;
+        }
+        updateImageTransform();
+    };
+
+    zoomOutBtn.addEventListener('click', () => changeZoom(-0.25));
+    zoomInBtn.addEventListener('click', () => changeZoom(0.25));
     container.addEventListener('pointerdown', event => {
-        swipeStartX = event.clientX;
+        if (zoom <= 1 || event.target.closest('#npc-ps-zoom-bar')) return;
+        panStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY };
+        container.setPointerCapture(event.pointerId);
+    });
+    container.addEventListener('pointermove', event => {
+        if (!panStart || event.pointerId !== panStart.pointerId) return;
+        panX = panStart.panX + event.clientX - panStart.x;
+        panY = panStart.panY + event.clientY - panStart.y;
+        updateImageTransform();
     });
     container.addEventListener('pointerup', event => {
-        if (swipeStartX === null) return;
-        const distance = event.clientX - swipeStartX;
-        swipeStartX = null;
-        if (Math.abs(distance) >= 40) stepPortrait(distance < 0 ? 1 : -1);
+        if (!panStart || event.pointerId !== panStart.pointerId) return;
+        container.releasePointerCapture(event.pointerId);
+        panStart = null;
     });
+    container.addEventListener('pointercancel', () => {
+        panStart = null;
+    });
+    updateImageTransform();
     modal.appendChild(container);
 
     const navBar = document.createElement('div');
@@ -445,7 +506,10 @@ function switchActiveNPC(entryIdx, { open = true } = {}) {
     if (!src) return;
 
     const img = document.getElementById('npc-ps-portrait-img');
-    if (img) img.src = src;
+    if (img) {
+        img.src = src;
+        document.getElementById('npc-ps-portrait-container')?.npcPsResetImageView?.();
+    }
 
     getOrCreatePanel();
     if (open) openPortraitModal();
@@ -504,7 +568,10 @@ function stepExpression(direction) {
     npcState.imageIdx = (npcState.imageIdx + direction + images.length) % images.length;
 
     const img = document.getElementById('npc-ps-portrait-img');
-    if (img) img.src = images[npcState.imageIdx].src;
+    if (img) {
+        img.src = images[npcState.imageIdx].src;
+        document.getElementById('npc-ps-portrait-container')?.npcPsResetImageView?.();
+    }
     updateNavLabel();
 }
 

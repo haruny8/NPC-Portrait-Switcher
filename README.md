@@ -1,64 +1,57 @@
-
 # NPC Portrait Switcher
- 
-> ⚠️ Author is a ROS2/C++ programmer — this extension is 99% vibe-coded JS/CSS. May conflict with other extensions that add containers to the right side of the chat.
- 
-A lightweight SillyTavern extension for narrator/DM setups. When your DM character's message contains an NPC's name (or any keyword you define), their portrait automatically appears on the right side of the chat window — mirroring ST's native left-side character panel.
- 
-Supports **expression overrides**: if both a character keyword and an expression keyword appear in the same message, the matching expression portrait is shown instead of the default.
 
-Supports **mutliple npc instance**: new icon tray appears above portrait of all the recently mentioned NPCs. User can switch which NPC is in the main/select view.
- 
-The portrait is interactive — hover to reveal `‹ ›` arrows to manually cycle through all portraits for that character.
- 
-## Installation
- 
-1. In SillyTavern, open the **Extensions** panel (puzzle-piece icon)
-2. Click **Install extension** and paste:
-```
-   https://github.com/NoaThouard/SillyTavern-Extension-NPC-Portait-Switcher
-```
-   Or manually copy this folder into:
-```
-   SillyTavern/public/scripts/extensions/third-party/npc-portrait-switcher/
-```
-3. Reload SillyTavern
+> **Vibe coding disclaimer:** This fork was built with a lot of vibe coding.
+
+A SillyTavern extension for narrator, DM, and multi-NPC chats. When a user-defined NPC keyword appears in the latest conversation messages, the extension displays that NPC's portrait beside the chat and can automatically select a matching expression.
+
+## Fork-specific Features
+
+- **Multiple NPCs in a scene:** Every NPC mentioned in the current scene gets an entry in the portrait tray. Select an NPC from the tray to make it the active portrait.
+- **Expression overrides:** Add expressions to an NPC with their own keywords and images. When both the NPC and an expression keyword are detected, the first matching expression is shown. (I don't use expressions, so this feature just keeps the original's)
+- **Per-character settings:** NPC entries are saved separately for each SillyTavern character. Your NPC list can therefore differ between chats or character setups instead of sharing one global list.
+- **Automatic scanning:** After an assistant message is rendered, the latest user/assistant exchange is scanned automatically.
+- **Manual scan button:** Use **Scan latest messages** in the extension settings, or use the **NPC Portraits** action in SillyTavern's Extensions menu wand, to rescan the latest user and assistant messages.
+- **Desktop and mobile layouts:** Desktop uses a right-side portrait panel with an NPC avatar tray. Mobile uses a small floating portrait button so the portrait does not automatically cover the chat.
+- **Draggable mobile button:** Drag the mobile button to a more convenient location. Its position is saved and restored across viewport changes and reloads.
+- **Portrait modal:** On mobile, tap the floating button to open the portrait in a centered modal. Tap the backdrop or the close button to dismiss it. On desktop, the portrait opens in the right-side panel.
+- **Zoom and pan:** Use the `−` and `+` controls, mouse-wheel zoom, or touch pinch zoom. Drag a zoomed portrait to pan it. Zoom ranges from 1× to 3× and resets when changing portraits.
+- **Portrait navigation:** Use the previous/next controls to cycle through expressions for one NPC, or through the NPCs currently in the scene when multiple NPCs are active.
+- **Keyword matching:** Matching is case-insensitive by default, uses whole-word boundaries, and supports multiple comma-separated keywords.
+
 ## Setup
- 
-1. Open the **Extensions** panel and find **NPC Portrait Switcher**
-2. Click **+ Add NPC** for each character you want
-3. Type the keyword(s) to watch for, comma separated (e.g. `Vexis, Vex`)
-4. Upload their default portrait — a 2:3 crop dialog will open automatically
-5. Optionally add **expressions** under each NPC — each expression has its own keyword(s) and image
-6. Optionally set a **Sticky duration** — seconds the portrait lingers after no match (0 = clears immediately on next non-matching message)
-## How it works
- 
-- After every AI message, the extension scans the text for your keywords
-- **Character match first**: the first NPC entry whose keyword appears in the message wins
-- **Expression match second**: within that character, the first expression whose keyword also appears wins — otherwise the default portrait is shown
-- The portrait appears in a dedicated panel on the right side of the chat, styled to match ST's native left-side zoomed avatar
-- Keyword matching is case-insensitive by default (toggle in settings)
-- Hover the portrait to reveal: a **✕** close button and **‹ ›** arrows to manually cycle portraits
-## Examples
 
-### NEW Multi-NPC support!
+1. Open the **Extensions** panel and find **NPC Portrait Switcher**.
+2. Click **+ Add NPC** for each NPC you want to track.
+3. Enter one or more comma-separated keywords, such as `Vexis, Vex, the drow`.
+4. Optionally enter a display label.
+5. Upload a default portrait. SillyTavern opens a crop dialog automatically; images are cropped to a 2:3 portrait ratio.
+6. Expand **Expressions** and add expression keywords, labels, and images as needed.
+7. Set **Mentions needed per message** if an NPC should only trigger after its keyword appears multiple times in one message.
+8. Choose the scanning and scene behavior in the settings:
+   - **Enabled** turns the extension on or off.
+   - **Auto-close** removes NPCs after they stop matching. When disabled, the scene remains until a new match causes non-mentioned NPCs to be removed.
+   - **Sticky replies** keeps an NPC in the scene for the selected number of messages after its last mention. `0` clears it immediately.
+   - **Case-sensitive matching** changes keyword matching from the default case-insensitive behavior.
 
-<img width="400" alt="image" src="https://github.com/user-attachments/assets/229efa2a-a7da-4e82-8ad1-445a60ba6be9" />
-<img width="400" alt="image" src="https://github.com/user-attachments/assets/8479fc7a-1f8c-42fb-b905-4ca6e75c3e71" />
+## How scanning works
 
+- The forked extension scans latest user message and the latest assistant message automatically after they are rendered.
+- A scan considers the the latest assistant message and the latest user message before it. If no preceding user message exists, it scans the latest assistant message alone.
+- Each NPC entry is checked independently, so more than one NPC can be active in the same message.
+- NPC keywords are checked first. Expression keywords are then checked within each matching NPC; expressions are evaluated in the order they appear in the settings, and the first match wins.
+- The **Mentions needed per message** value counts whole-word occurrences of an NPC keyword in one message. Expression keywords only need one match.
+- The active portrait follows the first NPC matched in the message unless you have manually selected an NPC from the tray. A manual selection stays pinned while that NPC remains in the scene.
+- Changing chats clears the active scene and closes the portrait. The saved NPC entries for each character remain available when you return.
 
----
-<img width="400" alt="default portrait" src="https://github.com/user-attachments/assets/298d3e3b-871e-475b-b4ac-6704e3e32ba0" />
-<img width="400" alt="angry expression" src="https://github.com/user-attachments/assets/ddf6620c-e169-43b8-b791-7c026a83ee8f" />
+## Mobile use
 
-## Tips
- 
-- Works best with **Visual Novel Mode** enabled (wider side panels)
-- Separate multiple keywords with commas: `Vexis, Vex, the drow`
-- Portrait clears automatically on chat switch
-- The manual `‹ ›` arrows let you browse all expressions for the current character regardless of what was detected
-## Notes
- 
-- Images are stored as **base64 inside SillyTavern's settings** — keep portraits under ~500KB to avoid bloating the settings file
-- All uploaded images are cropped to **2:3 portrait ratio** (512×768) automatically
-- Expressions are checked in the order you define them — first match wins
+On screens 768px wide or narrower, automatic scans update the active NPC without opening the large portrait automatically. This keeps the chat readable while still indicating that an NPC is active.
+
+Tap the floating image button to open the current portrait. The button can be dragged, and its position is saved. Once the modal is open, its close, navigation, and zoom controls remain available without hover.
+
+## Tips and notes
+
+- Upload reasonably sized images. Portraits are stored as base64 data in SillyTavern's extension settings, so very large images can make the settings file unnecessarily large.
+- Default portraits and expression images are cropped to a 2:3 ratio during upload.
+- Expression order matters: if several expression keywords match, the first configured expression wins.
+- The extension is designed around SillyTavern's current UI and may conflict with other extensions that position elements on the right side of the chat.

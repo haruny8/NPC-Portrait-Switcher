@@ -116,6 +116,7 @@
 
 /* ── Modal wrapper — the actual "big picture", shown only when opened ── */
 #npc-ps-modal {
+    position: relative;
     display: none;
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -129,7 +130,7 @@
 /* Control bar with close button — mirrors .panelControlBar on .zoomed_avatar */
 #npc-ps-modal .panelControlBar {
     position: absolute;
-    right: 5px;
+    right: -5px;
     top: 5px;
     z-index: 2000;
     min-width: 55px;
@@ -582,5 +583,12 @@
     #npc-ps-nav:not(.npc-ps-nav-hidden) {
         opacity: 1;
         pointer-events: auto;
+    }
+
+    /* Nudge closer to the true screen corner. The modal is centered with
+       min(92vw, 520px) width, leaving at least ~4vw of margin on each
+       side — safe room to shift right into without clipping off-screen. */
+    #npc-ps-modal .panelControlBar {
+        right: -12px;
     }
 }

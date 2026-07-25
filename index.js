@@ -626,13 +626,20 @@ function clearAllPortraits() {
 
 // ── Scanning ──────────────────────────────────────────────────────────────────
 
-function scanAndDisplay(messageText) {
+function scanAndDisplay(messageTexts) {
     const settings = getSettings();
     if (!settings.enabled || !settings.entries.length) return;
 
-    const text = messageText;
+    // Accept either a single string (automatic scan) or an array of strings
+    // (manual "scan latest" — user + assistant). Matching against multiple
+    // texts must happen as ONE combined pass: if we called this function
+    // once per text, the second call's cleanup step would treat itself as
+    // the sole "current message" and immediately purge anyone only matched
+    // in the first text (e.g. the user's message).
+    const texts = Array.isArray(messageTexts) ? messageTexts : [messageTexts];
+    const combinedText = texts.join('\n');
 
-    // Track which entryIdxs were matched in THIS message
+    // Track which entryIdxs were matched in THIS scan (across all texts)
     const matchedThisMessage = new Set();
 
     for (let entryIdx = 0; entryIdx < settings.entries.length; entryIdx++) {
@@ -642,9 +649,9 @@ function scanAndDisplay(messageText) {
         const charKeywords = splitKeywords(entry.keyword);
         if (charKeywords.length === 0) continue;
         
-        // Check if the message contains enough occurrences of the keywords
+        // Check if any single text contains enough occurrences of the keywords
         const triggerCount = entry.mentionsBeforeTrigger || 1;
-        if (!matchesAny(text, charKeywords, settings.caseSensitive, triggerCount)) continue;
+        if (!texts.some(text => matchesAny(text, charKeywords, settings.caseSensitive, triggerCount))) continue;
 
         matchedThisMessage.add(entryIdx);
 
@@ -657,7 +664,7 @@ function scanAndDisplay(messageText) {
                 const exprKeywords = splitKeywords(expr.keyword);
                 if (exprKeywords.length === 0) continue;
                 // Expression matching doesn't use trigger count - any match triggers it
-                if (matchesAny(text, exprKeywords, settings.caseSensitive, 1)) {
+                if (matchesAny(combinedText, exprKeywords, settings.caseSensitive, 1)) {
                     imageIdx = exprIdx + 1;
                     console.log(`[NPC Portrait Switcher] Expression matched: "${expr.keyword}"`);
                     break;
@@ -764,28 +771,27 @@ function scanAndDisplay(messageText) {
     }
 }
 
-function getLatestMessagePair(chat) {
+function getLatestUserAndAssistantMessages(chat) {
     if (!Array.isArray(chat)) return [];
 
-    const latestAssistantIndex = [...chat].findLastIndex(message => message && !message.is_user);
-    if (latestAssistantIndex < 0) return [];
+    const latestAssistant = [...chat].findLast(message => message && !message.is_user);
+    const latestUser = [...chat].findLast(message => message && message.is_user);
 
-    const latestUserIndex = [...chat].findLastIndex(
-        (message, index) => index < latestAssistantIndex && message?.is_user,
-    );
-    const pair = latestUserIndex >= 0
-        ? [chat[latestUserIndex], chat[latestAssistantIndex]]
-        : [chat[latestAssistantIndex]];
-    return pair.filter(Boolean);
+    return [latestUser, latestAssistant].filter(Boolean);
 }
 
 function scanLatestMessagePair() {
     const { chat } = SillyTavern.getContext();
-    const latestMessages = getLatestMessagePair(chat);
+    const latestMessages = getLatestUserAndAssistantMessages(chat);
     clearAllPortraits();
-    for (const message of latestMessages) {
-        scanAndDisplay(message.mes ?? '');
+    if (latestMessages.length) {
+        scanAndDisplay(latestMessages.map(message => message.mes ?? ''));
     }
+}
+
+function scanLatestAssistantMessage(message) {
+    clearAllPortraits();
+    scanAndDisplay(message?.mes ?? '');
 }
 
 function scanCurrentChat() {
@@ -1140,7 +1146,7 @@ document.addEventListener('click', e => {
         const { chat } = SillyTavern.getContext();
         const message = chat[messageId];
         if (!message || message.is_user) return;
-        scanLatestMessagePair();
+        scanLatestAssistantMessage(message);
     });
 
     eventSource.on(event_types.CHAT_CHANGED, () => {

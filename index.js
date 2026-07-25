@@ -864,11 +864,12 @@ function buildSettingsHTML() {
 
     <div style="margin-bottom:4px;"><b>NPC Entries</b></div>
     <div style="margin-bottom:8px;font-size:0.85em;opacity:0.6;">Separate multiple keywords with commas. Expressions override the default portrait when their keyword also appears.</div>
-    <div id="npc_ps_entries"></div>
 
-    <div class="npc-ps-row" style="margin-top:10px;">
+    <div class="npc-ps-row" style="margin-bottom:10px;">
       <button id="npc_ps_add" class="menu_button">+ Add NPC</button>
     </div>
+
+    <div id="npc_ps_entries" class="npc-ps-entries-scroll"></div>
 
   </div>
 </div>`;

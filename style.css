@@ -225,6 +225,40 @@
     border-radius: 8px;
     margin-bottom: 10px;
     overflow: hidden;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+}
+
+/* ── Scrollable, multi-column NPC entries list ──
+   Keeps the settings panel from growing endlessly tall as NPCs are added.
+   Two columns on wider layouts (desktop ST panel is roomy), one column
+   when the panel is narrow (e.g. mobile drawer). */
+.npc-ps-entries-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    margin-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(222, 161, 195, 0.55) transparent;
+}
+
+.npc-ps-entries-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.npc-ps-entries-scroll::-webkit-scrollbar-thumb {
+    background: rgba(222, 161, 195, 0.55);
+    border-radius: 4px;
+}
+
+@media (min-width: 500px) {
+    .npc-ps-entries-scroll {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 10px;
+        align-items: start;
+    }
 }
 
 .npc-ps-entry-card .npc-ps-entry-row {

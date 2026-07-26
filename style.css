@@ -120,6 +120,56 @@
     display: none;
     opacity: 0;
     transition: opacity 0.3s ease;
+    padding: 8px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    background: rgba(20, 17, 28, 0.94);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    #npc-ps-modal {
+        background: rgba(30, 25, 41, 0.7);
+    }
+}
+
+/* "Taram 2 / 4" — top-left is the only corner not already claimed by the
+   close button (top-right) or the prev/next nav (bottom). Add:
+   <div id="npc-ps-nameplate" class="npc-ps-nameplate">
+     <span id="npc-ps-name-text"></span>
+     <span id="npc-ps-position-text" class="npc-ps-nameplate-position"></span>
+   </div>
+   as a direct child of #npc-ps-modal, and set the two spans' textContent
+   in JS (e.g. "Taram" and "2 / 4"). */
+.npc-ps-nameplate {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(20, 17, 28, 0.6);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #e8dcee;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 250ms;
+}
+
+#npc-ps-modal:hover .npc-ps-nameplate {
+    opacity: 1;
+}
+
+.npc-ps-nameplate-position {
+    color: rgba(232, 220, 238, 0.6);
 }
 
 #npc-ps-modal.visible {
@@ -130,8 +180,8 @@
 /* Control bar with close button — mirrors .panelControlBar on .zoomed_avatar */
 #npc-ps-modal .panelControlBar {
     position: absolute;
-    right: -5px;
-    top: 5px;
+    right: 12px;
+    top: 12px;
     z-index: 2000;
     min-width: 55px;
     justify-content: flex-end;
@@ -183,6 +233,7 @@
     width: 100%;
     object-fit: contain !important;
     border-radius: 10px;
+    display: block;
     display: block;
     transform-origin: center center;
     user-select: none;
@@ -335,21 +386,25 @@
 
 #npc-ps-nav {
     position: absolute;
-    bottom: 8px;
+    bottom: 18px;
     left: 0;
     right: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 6px;
+    padding: 0 18px;
     opacity: 0;
     transition: opacity 0.2s ease;
     pointer-events: none;
 }
 
+#npc-ps-nav-label {
+    display: none;
+}
+
 .npc-ps-nav-side {
     display: flex;
-    gap: 6px;
+    gap: 10px;
 }
 
 #npc-ps-nav.npc-ps-nav-hidden #npc-ps-prev,
@@ -368,10 +423,10 @@
     border: none;
     border-radius: 50%;
     color: #fff;
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -406,26 +461,36 @@
     justify-content: center;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
     max-height: 120px;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 7px 6px;
+    padding: 5px 12px 5px 5px;
     /* No explicit width — the tray shrinks to fit however many icons are
        actually in it. The panel above is shrink-to-fit too, so the whole
        box (tray, and modal when open) grows and shrinks with content,
        right up to the existing max-width/max-height ceiling. */
     max-width: 100%;
     box-sizing: border-box;
-    border: 1px solid rgba(196, 181, 253, 0.42);
-    border-radius: 10px;
-    background: var(--black70a, rgba(19, 20, 31, 0.8));
-    box-shadow:
-        inset 0 1px 0 rgba(222, 161, 195, 0.18),
-        inset 0 0 14px rgba(196, 181, 253, 0.08),
-        0 3px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(30, 25, 41, 0.7);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
     scrollbar-width: thin;
     scrollbar-color: rgba(222, 161, 195, 0.55) transparent;
+}
+
+/* Optional count label, e.g. "3 in scene" — add
+   <span id="npc-ps-tray-count" class="npc-ps-tray-count"></span>
+   as the last child inside #npc-ps-tray and set its textContent in JS. */
+.npc-ps-tray-count {
+    font-size: 11px;
+    color: rgba(232, 220, 238, 0.75);
+    padding: 0 4px 0 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 #npc-ps-tray::-webkit-scrollbar {
@@ -438,29 +503,30 @@
 }
 
 .npc-ps-tray-icon {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     overflow: hidden;
     cursor: pointer;
-    border: 2px solid rgba(255,255,255,0.2);
-    transition: border-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+    border: 2px solid #1e1929;
+    transition: border-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease, margin 0.2s ease;
     opacity: 0.6;
     flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    margin-left: -8px;
 }
+.npc-ps-tray-icon:first-child { margin-left: 0; }
 
 .npc-ps-tray-icon:hover {
     opacity: 1;
-    transform: scale(1.1);
-    border-color: rgba(255,255,255,0.6);
+    transform: scale(1.08) translateY(-1px);
+    z-index: 1;
 }
 
 /* Active NPC gets a bright ring — matches ST's is_active outline colour */
 .npc-ps-tray-icon.active {
     opacity: 1;
     border-color: var(--SmartThemeQuoteColor, #DEA1C3);
-    box-shadow: 0 0 8px rgba(222, 161, 195, 0.6);
+    z-index: 1;
 }
 
 .npc-ps-tray-icon img {
@@ -485,6 +551,7 @@
         max-width: none;
         height: auto;
         max-height: none;
+        z-index: 9501;
     }
 
     #npc-ps-tray {
@@ -533,11 +600,11 @@
     }
 
     #npc-ps-mobile-button:hover {
-        background: rgba(45, 37, 61, 0.8);
-        border-color: rgba(196, 181, 253, 0.4);
-        color: #d4c2ff;
+        background: rgba(34, 28, 44, 0.92);
+        border-color: rgba(142, 131, 156, 0.36);
+        color: #c9bdcb;
         box-shadow:
-            0 0 15px rgba(196, 181, 253, 0.25),
+            0 0 12px rgba(124, 112, 142, 0.18),
             0 4px 16px rgba(0, 0, 0, 0.4);
     }
 
@@ -554,8 +621,8 @@
     #npc-ps-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.55);
-        z-index: 4000;
+        background: rgba(8, 7, 14, 0.82);
+        z-index: 9500;
     }
 
     #npc-ps-backdrop.visible {
@@ -563,14 +630,195 @@
     }
 
     #npc-ps-modal {
-        position: absolute;
-        top: 50%;
+        position: fixed;
+        top: 56px;
         left: 50%;
-        transform: translate(-50%, -50%);
-        width: min(92vw, 520px);
-        max-width: min(92vw, 520px);
-        max-height: 88vh;
-        z-index: 4001;
+        right: auto;
+        bottom: auto;
+        transform: translateX(-50%);
+        width: min(90vw, 420px);
+        max-width: min(90vw, 420px);
+        max-height: calc(100dvh - 60px);
+        z-index: 9501;
+        margin: 0;
+        border: 1px solid rgba(129, 112, 138, 0.28);
+        border-radius: 20px;
+        background:
+            linear-gradient(180deg,
+                rgba(32, 25, 42, 0.985) 0%,
+                rgba(23, 19, 33, 0.99) 52%,
+                rgba(17, 15, 27, 0.995) 100%);
+        box-shadow:
+            0 16px 40px rgba(0, 0, 0, 0.56),
+            inset 0 1px 0 rgba(224, 205, 217, 0.05);
+        display: none;
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden;
+        pointer-events: none;
+    }
+
+    #npc-ps-modal.visible {
+        display: flex;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Handle strip — a real in-flow band at the top of the card, not an
+       overlay floating on the photo */
+    #npc-ps-modal::before {
+        content: "";
+        position: static;
+        flex-shrink: 0;
+        display: block;
+        width: 32px;
+        height: 4px;
+        margin: 10px auto 8px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, rgba(112, 101, 122, 0.1), rgba(196, 171, 183, 0.42), rgba(144, 160, 184, 0.28));
+    }
+
+    #npc-ps-modal .panelControlBar {
+        top: 17px;
+        right: 14px;
+        opacity: 1;
+        min-width: auto;
+        z-index: 6;
+    }
+
+    #npc-ps-close {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        font-size: 17px;
+        line-height: 1;
+        opacity: 0.92;
+        color: rgba(221, 214, 228, 0.82);
+    }
+
+    #npc-ps-close:hover {
+        background: transparent;
+        color: rgba(235, 227, 233, 0.94);
+    }
+
+    #npc-ps-portrait-container {
+        flex: 1;
+        min-height: 0;
+        width: calc(100% - 24px);
+        max-width: calc(100% - 24px);
+        margin: 0 12px;
+        box-sizing: border-box;
+    }
+
+    /* Nameplate becomes the footer band — a real in-flow row below the
+       image, sharing the card's own background, not text pasted over
+       the photo */
+    .npc-ps-nameplate {
+        position: static;
+        order: 2;
+        flex-shrink: 0;
+        pointer-events: auto;
+        opacity: 1;
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border-radius: 0;
+        padding: 14px 14px 18px;
+        margin: 0;
+        font-size: 13px;
+        gap: 10px;
+    }
+
+    #npc-ps-name-text,
+    #npc-ps-position-text {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(157, 139, 155, 0.2);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 6px 16px rgba(10, 8, 18, 0.18);
+        white-space: nowrap;
+    }
+
+    #npc-ps-name-text {
+        flex: 1 1 auto;
+        justify-content: flex-start;
+        background: linear-gradient(135deg, rgba(67, 50, 79, 0.94), rgba(48, 37, 63, 0.94));
+        color: rgb(236, 226, 232);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        pointer-events: auto;
+        text-align: left;
+    }
+
+    #npc-ps-name-text::after {
+        content: "\25be";
+        margin-left: auto;
+        color: rgba(218, 226, 239, 0.76);
+        font-size: 12px;
+    }
+
+    #npc-ps-name-text[aria-expanded="true"]::after {
+        transform: rotate(180deg);
+    }
+
+    #npc-ps-position-text {
+        flex: 0 0 auto;
+        justify-content: center;
+        background: linear-gradient(135deg, rgba(55, 49, 74, 0.94), rgba(39, 49, 67, 0.94));
+        color: rgba(218, 226, 239, 0.92);
+        font-size: 14px;
+        font-weight: 600;
+        min-width: 60px;
+    }
+
+    #npc-ps-npc-picker {
+        order: 3;
+        display: none;
+        width: 100%;
+        max-height: min(30dvh, 220px);
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 0 14px 14px;
+        gap: 6px;
+        flex-direction: column;
+    }
+
+    #npc-ps-npc-picker.visible {
+        display: flex;
+    }
+
+    .npc-ps-npc-picker-option {
+        width: 100%;
+        min-height: 40px;
+        padding: 0 12px;
+        border: 1px solid rgba(157, 139, 155, 0.2);
+        border-radius: 7px;
+        background: rgba(52, 41, 67, 0.9);
+        color: rgb(236, 226, 232);
+        font: inherit;
+        font-size: 14px;
+        text-align: left;
+    }
+
+    .npc-ps-npc-picker-option.active {
+        border-color: rgba(202, 171, 214, 0.52);
+        background: rgba(81, 59, 98, 0.94);
     }
 
     #npc-ps-portrait-container,
@@ -585,10 +833,37 @@
         pointer-events: auto;
     }
 
-    /* Nudge closer to the true screen corner. The modal is centered with
-       min(92vw, 520px) width, leaving at least ~4vw of margin on each
-       side — safe room to shift right into without clipping off-screen. */
-    #npc-ps-modal .panelControlBar {
-        right: -12px;
+    /* The nav bar is still positioned relative to the whole modal, but
+       the footer nameplate band now occupies its own space below the
+       image — bump it up so it doesn't sit on top of the name text */
+    #npc-ps-nav {
+        bottom: 72px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        padding: 0;
+        gap: 8px;
     }
+
+    #npc-ps-prev,
+    #npc-ps-next,
+    #npc-ps-zoom-out,
+    #npc-ps-zoom-in {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 16px;
+    }
+
+    #npc-ps-prev,
+    #npc-ps-next {
+        font-size: 17px;
+    }
+
+    #npc-ps-zoom-out,
+    #npc-ps-zoom-in {
+        font-size: 18px;
+    }
+
 }

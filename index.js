@@ -181,6 +181,10 @@ function openPortraitModal() {
     getOrCreatePanel();
     document.getElementById('npc-ps-modal')?.classList.add('visible');
     document.getElementById('npc-ps-backdrop')?.classList.add('visible');
+    if (isMobileView()) {
+        const rect = document.getElementById('npc-ps-modal')?.getBoundingClientRect();
+        console.log('[npc-ps] modal opened, bounding rect:', rect, 'viewport:', window.innerWidth, window.innerHeight);
+    }
 }
 
 function closePortraitModal() {
@@ -315,6 +319,34 @@ function getOrCreatePanel() {
     }, { passive: false });
     updateImageTransform();
     modal.appendChild(container);
+
+    // ── Nameplate — "Taram 2 / 4" — top-left, clear of the close button
+    // (top-right) and the prev/next nav bar (bottom) ──
+    const nameplate = document.createElement('div');
+    nameplate.id = 'npc-ps-nameplate';
+    nameplate.className = 'npc-ps-nameplate';
+    const nameText = document.createElement('button');
+    nameText.id = 'npc-ps-name-text';
+    nameText.type = 'button';
+    nameText.title = 'Choose an NPC';
+    nameText.setAttribute('aria-expanded', 'false');
+    nameText.addEventListener('click', () => {
+        if (!isMobileView() || sceneNPCs.size < 2) return;
+        const picker = document.getElementById('npc-ps-npc-picker');
+        if (!picker) return;
+        const isOpen = picker.classList.toggle('visible');
+        nameText.setAttribute('aria-expanded', String(isOpen));
+    });
+    const positionText = document.createElement('span');
+    positionText.id = 'npc-ps-position-text';
+    positionText.className = 'npc-ps-nameplate-position';
+    nameplate.append(nameText, positionText);
+    modal.appendChild(nameplate);
+
+    const picker = document.createElement('div');
+    picker.id = 'npc-ps-npc-picker';
+    picker.setAttribute('aria-label', 'NPCs in scene');
+    modal.appendChild(picker);
 
     const navBar = document.createElement('div');
     navBar.id = 'npc-ps-nav';
@@ -506,6 +538,14 @@ function rebuildTray() {
         tray.appendChild(icon);
     }
 
+    if (sceneNPCs.size > 1) {
+        const count = document.createElement('span');
+        count.id = 'npc-ps-tray-count';
+        count.className = 'npc-ps-tray-count';
+        count.textContent = `${sceneNPCs.size} in scene`;
+        tray.appendChild(count);
+    }
+
     // NOTE: the big picture's visibility is no longer tied to tray
     // population — it's controlled explicitly via openPortraitModal()/
     // closePortraitModal(). This is what stops the portrait from forcing
@@ -545,10 +585,15 @@ function switchActiveNPC(entryIdx, { open = true } = {}) {
 function updateNavLabel() {
     const nav = document.getElementById('npc-ps-nav');
     const label = document.getElementById('npc-ps-nav-label');
+    const nameText = document.getElementById('npc-ps-name-text');
+    const positionText = document.getElementById('npc-ps-position-text');
     if (!nav || !label) return;
 
     if (activeEntryIdx === null) {
         nav.classList.add('npc-ps-nav-hidden');
+        if (nameText) nameText.textContent = '';
+        if (positionText) positionText.textContent = '';
+        renderNpcPicker();
         return;
     }
 
@@ -559,6 +604,13 @@ function updateNavLabel() {
     const entry = getSettings().entries[activeEntryIdx];
     const npcLabel = entry?.label || splitKeywords(entry?.keyword)[0] || 'NPC';
 
+    if (nameText) nameText.textContent = npcLabel;
+    if (positionText) {
+        positionText.textContent = sceneEntries.length > 1
+            ? `${activeScenePosition} / ${sceneEntries.length}`
+            : (images.length > 1 ? `${npcState ? npcState.imageIdx + 1 : 1} / ${images.length}` : '');
+    }
+
     if (!npcState || (images.length <= 1 && sceneEntries.length <= 1)) {
         nav.classList.add('npc-ps-nav-hidden');
         label.textContent = '';
@@ -567,6 +619,40 @@ function updateNavLabel() {
         label.textContent = sceneEntries.length > 1
             ? `${npcLabel} ${activeScenePosition} / ${sceneEntries.length}`
             : `${npcState.imageIdx + 1} / ${images.length}`;
+    }
+
+    renderNpcPicker();
+}
+
+function renderNpcPicker() {
+    const picker = document.getElementById('npc-ps-npc-picker');
+    const nameText = document.getElementById('npc-ps-name-text');
+    if (!picker || !nameText) return;
+
+    picker.replaceChildren();
+    const settings = getSettings();
+    for (const entryIdx of sceneNPCs.keys()) {
+        const entry = settings.entries[entryIdx];
+        if (!entry) continue;
+
+        const npcLabel = entry.label || splitKeywords(entry.keyword)[0] || 'NPC';
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'npc-ps-npc-picker-option';
+        option.textContent = npcLabel;
+        option.classList.toggle('active', entryIdx === activeEntryIdx);
+        option.addEventListener('click', () => {
+            pinnedEntryIdx = entryIdx;
+            picker.classList.remove('visible');
+            nameText.setAttribute('aria-expanded', 'false');
+            switchActiveNPC(entryIdx, { open: true });
+        });
+        picker.appendChild(option);
+    }
+
+    if (sceneNPCs.size < 2) {
+        picker.classList.remove('visible');
+        nameText.setAttribute('aria-expanded', 'false');
     }
 }
 

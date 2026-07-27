@@ -172,6 +172,29 @@
     color: rgba(232, 220, 238, 0.6);
 }
 
+/* Reset native <button> chrome on the name text — without this it shows
+   its default background/border (the "white square") nested inside the
+   already-styled dark nameplate pill. Mobile fully re-styles this inside
+   its own media query below, so this reset only visibly changes desktop. */
+#npc-ps-name-text {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: default;
+}
+
+/* Off by default everywhere. Desktop already has the avatar tray for
+   switching between NPCs, so this text-label list would just be a
+   redundant duplicate sitting under the portrait. It's only ever opened
+   via JS on mobile (see the .visible override inside the mobile media
+   query below), where there's no avatar tray. */
+#npc-ps-npc-picker {
+    display: none;
+}
+
 #npc-ps-modal.visible {
     display: block;
     opacity: 1;
@@ -631,14 +654,14 @@
 
     #npc-ps-modal {
         position: fixed;
-        top: 56px;
+        top: 24px;
         left: 50%;
         right: auto;
         bottom: auto;
         transform: translateX(-50%);
         width: min(90vw, 420px);
         max-width: min(90vw, 420px);
-        max-height: calc(100dvh - 60px);
+        max-height: calc(100dvh - 48px);
         z-index: 9501;
         margin: 0;
         border: 1px solid rgba(129, 112, 138, 0.28);
@@ -709,7 +732,7 @@
 
     #npc-ps-portrait-container {
         flex: 1;
-        min-height: 0;
+        min-height: 140px; /* hard floor — the image can shrink to make room for the drawer, but never disappear */
         width: calc(100% - 24px);
         max-width: calc(100% - 24px);
         margin: 0 12px;
@@ -734,7 +757,7 @@
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
         border-radius: 0;
-        padding: 14px 14px 18px;
+        padding: 2px 14px 18px;
         margin: 0;
         font-size: 13px;
         gap: 10px;
@@ -744,8 +767,8 @@
     #npc-ps-position-text {
         display: inline-flex;
         align-items: center;
-        min-height: 34px;
-        padding: 0 12px;
+        min-height: 26px; /* was 34px */
+        padding: 0 10px; /* was 0 12px */
         border-radius: 999px;
         border: 1px solid rgba(157, 139, 155, 0.2);
         box-shadow:
@@ -759,7 +782,7 @@
         justify-content: flex-start;
         background: linear-gradient(135deg, rgba(67, 50, 79, 0.94), rgba(48, 37, 63, 0.94));
         color: rgb(236, 226, 232);
-        font-size: 15px;
+        font-size: 12px; /* was 15px */
         font-weight: 600;
         cursor: pointer;
         pointer-events: auto;
@@ -770,7 +793,7 @@
         content: "\25be";
         margin-left: auto;
         color: rgba(218, 226, 239, 0.76);
-        font-size: 12px;
+        font-size: 10px; /* was 12px */
     }
 
     #npc-ps-name-text[aria-expanded="true"]::after {
@@ -782,16 +805,26 @@
         justify-content: center;
         background: linear-gradient(135deg, rgba(55, 49, 74, 0.94), rgba(39, 49, 67, 0.94));
         color: rgba(218, 226, 239, 0.92);
-        font-size: 14px;
+        font-size: 11px; /* was 14px */
         font-weight: 600;
-        min-width: 60px;
+        min-width: 46px; /* was 60px */
     }
 
     #npc-ps-npc-picker {
+        /* In-flow again, ordered right after the nameplate (order:2) so it
+           opens directly below the name pill instead of floating over the
+           image. This is safe now because #npc-ps-nav no longer anchors
+           itself via a pixel offset from the modal's bottom edge (see the
+           #npc-ps-nav rule above) — so this drawer adding height here can
+           no longer drag the nav out of position. #npc-ps-portrait-container
+           has a min-height floor above, so the image shrinks to make room
+           but can't disappear; this list also scrolls internally if the
+           NPC count means it still doesn't all fit. */
         order: 3;
+        flex-shrink: 0;
         display: none;
         width: 100%;
-        max-height: min(30dvh, 220px);
+        max-height: min(24dvh, 180px);
         overflow-y: auto;
         box-sizing: border-box;
         padding: 0 14px 14px;
@@ -805,14 +838,14 @@
 
     .npc-ps-npc-picker-option {
         width: 100%;
-        min-height: 40px;
+        min-height: 32px; /* was 40px */
         padding: 0 12px;
         border: 1px solid rgba(157, 139, 155, 0.2);
         border-radius: 7px;
         background: rgba(52, 41, 67, 0.9);
         color: rgb(236, 226, 232);
         font: inherit;
-        font-size: 14px;
+        font-size: 12px; /* was 14px, matches the shrunk nameplate text */
         text-align: left;
     }
 
@@ -833,14 +866,19 @@
         pointer-events: auto;
     }
 
-    /* The nav bar is still positioned relative to the whole modal, but
-       the footer nameplate band now occupies its own space below the
-       image — bump it up so it doesn't sit on top of the name text */
+    /* Previously anchored via `position:absolute; bottom:72px` relative
+       to the whole modal — which meant whenever content below it (the
+       drawer) grew the modal taller, this offset dragged the nav bar
+       down with it, right into the drawer. Making it a real in-flow
+       item (ordered right after the image, before the nameplate/drawer)
+       means its position no longer depends on the modal's total height
+       at all — it just always sits directly under the image. */
     #npc-ps-nav {
-        bottom: 72px;
-        left: 10px;
-        right: 10px;
+        position: static;
+        order: 1;
+        flex-shrink: 0;
         width: auto;
+        margin: 10px 10px 8px; /* top margin added — was 0 10px 8px, sat flush against the image */
         padding: 0;
         gap: 8px;
     }

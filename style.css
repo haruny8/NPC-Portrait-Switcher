@@ -580,7 +580,7 @@
     #npc-ps-tray {
         position: absolute;
         inset: 0;
-        z-index: 9000;
+        z-index: 999;
         width: auto;
         max-height: none;
         overflow: visible;

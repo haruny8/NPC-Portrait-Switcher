@@ -418,7 +418,7 @@ function makeMobilePortraitButton() {
     button.type = 'button';
     button.title = 'Show active NPC portrait';
     button.setAttribute('aria-label', 'Show active NPC portrait');
-    button.innerHTML = '<i class="fa-solid fa-images"></i>';
+    button.innerHTML = '<i class="fa-solid fa-image-portrait"></i>';
 
     const settings = getSettings();
     const savedPosition = settings.mobileButtonPosition;
@@ -899,7 +899,7 @@ function addWandButton() {
     button.title = 'Scan the latest user and assistant messages';
 
     const icon = document.createElement('div');
-    icon.className = 'fa-solid fa-images extensionsMenuExtensionButton';
+    icon.className = 'fa-solid fa-image-portrait extensionsMenuExtensionButton';
 
     const label = document.createElement('span');
     label.textContent = 'NPC Portraits';

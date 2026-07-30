@@ -8,6 +8,11 @@
 
 const MODULE_NAME = 'npc_portrait_switcher';
 
+// Set to true if you need to troubleshoot keyword matching — logs every
+// character/expression match to the console. Left off by default so long
+// roleplay sessions don't quietly pile up console entries.
+const DEBUG = false;
+
 const defaultSettings = Object.freeze({
     enabled: true,
     entries: [],
@@ -104,45 +109,81 @@ async function readFileAsDataUrl(file) {
     });
 }
 
+// Downscales to a sane max resolution and re-encodes as high-quality JPEG.
+// Portraits are only ever shown at a few hundred px (tray icons, the modal),
+// so storing them at full AI-gen resolution (often 1500–3000px+) is pure
+// waste — it bloats settings.json/the character card and makes the browser
+// decode a much bigger image than necessary every time the portrait switches.
+// Never upscales; falls back to the original image untouched if anything
+// goes wrong, so a bad image can never break the upload.
+async function compressImage(dataUrl, { maxDimension = 1536, quality = 0.92 } = {}) {
+    try {
+        const img = await new Promise((resolve, reject) => {
+            const el = new Image();
+            el.onload = () => resolve(el);
+            el.onerror = reject;
+            el.src = dataUrl;
+        });
+
+        const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+        const width = Math.max(1, Math.round(img.naturalWidth * scale));
+        const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // WebP gives noticeably less blocking/artifacting than JPEG at an
+        // equivalent file size — important here since portraits get
+        // pinch-zoomed in the modal, so compression artifacts are much
+        // more visible than they'd be at a fixed display size.
+        return canvas.toDataURL('image/webp', quality);
+    } catch (err) {
+        console.warn('[NPC Portrait Switcher] Image compression failed, using original image:', err);
+        return dataUrl;
+    }
+}
+
 // ── Keyword helpers ───────────────────────────────────────────────────────────
 
 function splitKeywords(str) {
     return (str || '').split(',').map(k => k.trim()).filter(k => k.length > 0);
 }
 
+// Hoisted out of matchesAny — no reason to recreate this closure/regex on
+// every single occurrence found while scanning.
+const WORD_CHAR_RE = /[\w]/;
+function isWordChar(char) {
+    return WORD_CHAR_RE.test(char);
+}
+
 function matchesAny(rawText, keywords, caseSensitive, triggerCount = 1) {
     let matchCount = 0;
-    const text = rawText;
-    
+    // Lowercased once per call instead of once per keyword — previously a
+    // message with 5 keywords re-lowercased the same text 5 times.
+    const hay = caseSensitive ? rawText : rawText.toLowerCase();
+
     for (const kw of keywords) {
         if (!kw) continue;
-        
+
         const needle = caseSensitive ? kw : kw.toLowerCase();
-        const hay = caseSensitive ? text : text.toLowerCase();
-        
+
         // Count all occurrences using indexOf in a loop
         let pos = -1;
-        let count = 0;
         while ((pos = hay.indexOf(needle, pos + 1)) !== -1) {
-            count++;
-            // Check if it's a whole word using Unicode-aware regex
-            // \w matches letters, digits, and underscore
-            // Use Unicode property for proper word boundary detection
+            // Check if it's a whole word using Unicode-aware word-char check
             const beforeChar = pos > 0 ? hay[pos - 1] : '';
             const afterChar = pos + needle.length < hay.length ? hay[pos + needle.length] : '';
-            
-            // Check if the character is a word character (letter, digit, underscore)
-            // Using \w which is Unicode-aware in modern JS
-            const isWordChar = (char) => /[\w]/.test(char);
-            
-            // Check if there's a word boundary
+
             const isBeforeWordBoundary = beforeChar === '' || !isWordChar(beforeChar);
             const isAfterWordBoundary = afterChar === '' || !isWordChar(afterChar);
-            
+
             if (isBeforeWordBoundary && isAfterWordBoundary) {
                 matchCount++;
                 if (matchCount >= triggerCount) {
-                    console.log(`[NPC Portrait Switcher] Found ${matchCount} occurrences of "${kw}" (need ${triggerCount})`);
+                    if (DEBUG) console.log(`[NPC Portrait Switcher] Found ${matchCount} occurrences of "${kw}" (need ${triggerCount})`);
                     return true;
                 }
             }
@@ -181,7 +222,9 @@ function openPortraitModal() {
     getOrCreatePanel();
     document.getElementById('npc-ps-modal')?.classList.add('visible');
     document.getElementById('npc-ps-backdrop')?.classList.add('visible');
-    if (isMobileView()) {
+    if (DEBUG && isMobileView()) {
+        // getBoundingClientRect() forces a synchronous layout — only pay for
+        // that when actually debugging, not on every single modal open.
         const rect = document.getElementById('npc-ps-modal')?.getBoundingClientRect();
         console.log('[npc-ps] modal opened, bounding rect:', rect, 'viewport:', window.innerWidth, window.innerHeight);
     }
@@ -497,11 +540,11 @@ function rebuildTray() {
     const panel = getOrCreatePanel();
     const tray = document.getElementById('npc-ps-tray');
     if (!tray) return;
-    removeMobileButtonViewportListeners?.();
-    removeMobileButtonViewportListeners = null;
-    tray.innerHTML = '';
 
     if (sceneNPCs.size === 0) {
+        removeMobileButtonViewportListeners?.();
+        removeMobileButtonViewportListeners = null;
+        tray.innerHTML = '';
         tray.style.display = 'none';
         return;
     }
@@ -509,9 +552,24 @@ function rebuildTray() {
     tray.style.display = 'flex';
 
     if (isMobileView()) {
-        tray.appendChild(makeMobilePortraitButton());
+        // The button reads `activeEntryIdx` live inside its own click
+        // handler, so it never goes stale — it doesn't need rebuilding just
+        // because the active NPC changed. Only (re)create it the first time
+        // the tray goes from empty to non-empty.
+        if (!document.getElementById('npc-ps-mobile-button')) {
+            tray.appendChild(makeMobilePortraitButton());
+        }
         return;
     }
+
+    // Desktop: rebuild the icon row. This one still tears down and recreates
+    // every icon on every call, same as before — it's a handful of small
+    // elements (one per NPC in scene), so unlike the mobile button above,
+    // that cost is genuinely negligible and not worth the added complexity
+    // of diffing.
+    removeMobileButtonViewportListeners?.();
+    removeMobileButtonViewportListeners = null;
+    tray.innerHTML = '';
 
     const settings = getSettings();
     for (const [entryIdx] of sceneNPCs) {
@@ -752,13 +810,13 @@ function scanAndDisplay(messageTexts) {
                 // Expression matching doesn't use trigger count - any match triggers it
                 if (matchesAny(combinedText, exprKeywords, settings.caseSensitive, 1)) {
                     imageIdx = exprIdx + 1;
-                    console.log(`[NPC Portrait Switcher] Expression matched: "${expr.keyword}"`);
+                    if (DEBUG) console.log(`[NPC Portrait Switcher] Expression matched: "${expr.keyword}"`);
                     break;
                 }
             }
         }
 
-        console.log(`[NPC Portrait Switcher] Character matched: "${entry.keyword}" entryIdx=${entryIdx} imageIdx=${imageIdx}`);
+        if (DEBUG) console.log(`[NPC Portrait Switcher] Character matched: "${entry.keyword}" entryIdx=${entryIdx} imageIdx=${imageIdx}`);
 
         // Check if this NPC is already in scene
         if (sceneNPCs.has(entryIdx)) {
@@ -827,7 +885,10 @@ function scanAndDisplay(messageTexts) {
         return;
     }
 
-    rebuildTray();
+    // Every branch below always ends up calling switchActiveNPC() (which
+    // rebuilds the tray itself) — a standalone rebuildTray() call here was
+    // therefore always immediately redundant, running the full tray
+    // teardown/rebuild twice per message for no reason.
 
     // On desktop, auto-scanning still pops the big picture open like before.
     // On mobile it never forces the modal open on its own — it only updates
@@ -1008,7 +1069,7 @@ function renderExpressionRow(expr, exprIdx, entryIdx, settings) {
         const dataUrl = await readFileAsDataUrl(file);
         const cropped = await cropImage(dataUrl);
         if (!cropped) return;
-        settings.entries[entryIdx].expressions[exprIdx].imageData = cropped;
+        settings.entries[entryIdx].expressions[exprIdx].imageData = await compressImage(cropped);
         saveSettings();
         renderEntries();
     });
@@ -1079,7 +1140,7 @@ function renderEntries() {
             const dataUrl = await readFileAsDataUrl(file);
             const cropped = await cropImage(dataUrl);
             if (!cropped) return;
-            settings.entries[idx].imageData = cropped;
+            settings.entries[idx].imageData = await compressImage(cropped);
             saveSettings();
             renderEntries();
         });

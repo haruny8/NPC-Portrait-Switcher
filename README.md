@@ -13,6 +13,7 @@ A SillyTavern extension for narrator, DM, and multi-NPC chats. When a user-defin
 - **Manual scan button:** Use **Scan latest messages** in the extension settings, or use the **NPC Portraits** action in SillyTavern's Extensions menu wand, to rescan the latest user and assistant messages.
 - **Desktop and mobile layouts:** Desktop uses a right-side portrait panel with an NPC avatar tray. Mobile uses a small floating portrait button so the portrait does not automatically cover the chat.
 - **Draggable mobile button:** Drag the mobile button to a more convenient location. Its position is saved and restored across viewport changes and reloads.
+- **Reorderable NPC entries:** On desktop, enable **Reorder entries** in the settings, then drag an NPC by its handle. On mobile, use the up and down arrow buttons on each entry to move it one position at a time. The saved order is also used for the portrait tray, picker, and NPC navigation order.
 - **Portrait modal:** On mobile, tap the floating button to open the portrait in a centered modal. Tap the backdrop or the close button to dismiss it. On desktop, scans keep the full portrait hidden until you click an NPC in the tray; the portrait then opens in the right-side panel.
 - **Zoom and pan:** Use the `−` and `+` controls, mouse-wheel zoom, or touch pinch zoom. Drag a zoomed portrait to pan it. Zoom ranges from 1× to 3× and resets when changing portraits.
 - **Portrait navigation:** Use the previous/next controls to cycle through expressions for one NPC, or through the NPCs currently in the scene when multiple NPCs are active.
@@ -26,8 +27,9 @@ A SillyTavern extension for narrator, DM, and multi-NPC chats. When a user-defin
 4. Optionally enter a display label.
 5. Upload a default portrait. SillyTavern opens a crop dialog automatically; images are cropped to a 2:3 portrait ratio.
 6. Expand **Expressions** and add expression keywords, labels, and images as needed.
-7. Set **Mentions needed per message** if an NPC should only trigger after its keyword appears multiple times in one message.
-8. Choose the scanning and scene behavior in the settings:
+7. On desktop, enable **Reorder entries** and drag NPCs into a custom order. On mobile, use each entry's up and down arrows. The first entry in the list appears first in the active portrait panel.
+8. Set **Mentions needed per message** if an NPC should only trigger after its keyword appears multiple times in one message.
+9. Choose the scanning and scene behavior in the settings:
    - **Enabled** turns the extension on or off.
    - **Auto-close** removes NPCs after they stop matching. When disabled, the scene remains until a new match causes non-mentioned NPCs to be removed.
    - **Sticky replies** keeps an NPC in the scene for the selected number of messages after its last mention. `0` clears it immediately.

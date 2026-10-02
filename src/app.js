@@ -1,7 +1,7 @@
 import { cropImage, compressImage, readFileAsDataUrl } from './media/images.js';
 import { splitKeywords } from './matching/keywords.js';
 import { createSettingsStore } from './settings/store.js';
-import { clearScene, createSceneState } from './scene/state.js';
+import { clearScene, createSceneState, reorderSceneNPCs } from './scene/state.js';
 import { getLatestUserAndAssistantMessages, scanAndUpdateScene } from './scene/scanner.js';
 import { createPortraitPanel } from './ui/portrait-panel.js';
 import { createSettingsPanel } from './ui/settings-panel.js';
@@ -24,6 +24,12 @@ export function start(getContext = () => SillyTavern.getContext()) {
     function switchActiveNPC(entryIdx, { open = true } = {}) {
         portraitPanel.showActiveNPC(entryIdx, { open });
         trayController.render();
+    }
+
+    function handleEntriesReordered() {
+        reorderSceneNPCs(state, settingsStore.getSettings().entries);
+        trayController.render();
+        portraitPanel.updateNavLabel();
     }
 
     function applyScan(messageTexts) {
@@ -112,6 +118,7 @@ export function start(getContext = () => SillyTavern.getContext()) {
         compressImage,
         scanCurrentChat,
         clearAllPortraits,
+        onEntriesReordered: handleEntriesReordered,
     });
 
     document.addEventListener('click', event => {

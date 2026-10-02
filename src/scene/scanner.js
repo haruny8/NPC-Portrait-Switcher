@@ -1,5 +1,6 @@
 import { DEBUG } from '../config.js';
 import { findKeywordMatches, splitKeywords } from '../matching/keywords.js';
+import { reorderSceneNPCs } from './state.js';
 
 function getPortraitImages(entries, entryIdx) {
     const entry = entries[entryIdx];
@@ -75,6 +76,8 @@ export function scanAndUpdateScene(messageTexts, settings, state) {
         return { matchedEntryIdxs: new Set(), activeEntryIdx: state.activeEntryIdx };
     }
 
+    reorderSceneNPCs(state, settings.entries);
+
     const texts = Array.isArray(messageTexts) ? messageTexts : [messageTexts];
     const combinedText = texts.join('\n');
     const matchedThisMessage = new Set();
@@ -122,11 +125,13 @@ export function scanAndUpdateScene(messageTexts, settings, state) {
 
         if (state.sceneNPCs.has(entryIdx)) {
             const npcState = state.sceneNPCs.get(entryIdx);
+            npcState.entry = entry;
             npcState.imageIdx = imageIdx;
             npcState.replyCounter = 0;
         } else {
             state.sceneNPCs.set(entryIdx, {
                 entryIdx,
+                entry,
                 imageIdx,
                 replyCounter: 0,
             });
@@ -165,6 +170,8 @@ export function scanAndUpdateScene(messageTexts, settings, state) {
             state.pinnedEntryIdx = null;
         }
     }
+
+    reorderSceneNPCs(state, settings.entries);
 
     if (state.sceneNPCs.size === 0) {
         state.activeEntryIdx = null;

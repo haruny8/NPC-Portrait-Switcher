@@ -1,4 +1,7 @@
-export function createSettingsPanel({ getSettings, saveSettings, cropImage, readFileAsDataUrl, compressImage, scanCurrentChat, clearAllPortraits }) {
+export function createSettingsPanel({ getSettings, saveSettings, cropImage, readFileAsDataUrl, compressImage, scanCurrentChat, clearAllPortraits, onEntriesReordered = () => {} }) {
+    let reorderMode = false;
+    let activeDrag = null;
+
     function buildSettingsHTML() {
         return `
 <div id="npc-portrait-panel" style="margin-bottom:10px;">
@@ -47,7 +50,11 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
 
     <div class="npc-ps-row" style="margin-bottom:10px;">
       <button id="npc_ps_add" class="menu_button">+ Add NPC</button>
+            <button id="npc_ps_reorder" class="menu_button" type="button" aria-pressed="false" title="Enable dragging for NPC entries">
+                <i class="fa-solid fa-grip-vertical" aria-hidden="true"></i> Reorder entries
+            </button>
     </div>
+        <div class="npc-ps-reorder-help">Enable reorder mode, then drag an entry by its handle.</div>
 
     <div id="npc_ps_entries" class="npc-ps-entries-scroll"></div>
 
@@ -108,6 +115,7 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
         const container = document.getElementById('npc_ps_entries');
         if (!container) return;
         container.innerHTML = '';
+        container.classList.toggle('npc-ps-reorder-mode', reorderMode);
 
         settings.entries.forEach((entry, idx) => {
             if (!Array.isArray(entry.expressions)) entry.expressions = [];
@@ -121,6 +129,17 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
             headerRow.className = 'npc-ps-entry-row';
             headerRow.dataset.index = String(idx);
             headerRow.innerHTML = `
+            <button type="button" class="npc-ps-entry-drag-handle" title="Drag to reorder" aria-label="Drag to reorder NPC entry">
+                <i class="fa-solid fa-grip-vertical" aria-hidden="true"></i>
+            </button>
+            <div class="npc-ps-entry-order-controls" aria-label="Move NPC entry">
+                <button type="button" class="npc-ps-entry-move" data-direction="-1" title="Move up" aria-label="Move NPC entry up" ${idx === 0 ? 'disabled' : ''}>
+                    <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="npc-ps-entry-move" data-direction="1" title="Move down" aria-label="Move NPC entry down" ${idx === settings.entries.length - 1 ? 'disabled' : ''}>
+                    <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </button>
+            </div>
             <div class="npc-ps-entry-preview">
                 ${entry.imageData
                     ? `<img src="${entry.imageData}" class="npc-ps-thumb" alt="portrait" />`
@@ -148,6 +167,10 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
             </div>
             <button class="npc-ps-delete menu_button" title="Remove NPC">✕</button>
         `;
+
+            const dragHandle = headerRow.querySelector('.npc-ps-entry-drag-handle');
+            dragHandle.disabled = !reorderMode;
+            dragHandle.addEventListener('pointerdown', event => startEntryDrag(event, card, dragHandle, container));
 
             headerRow.querySelector('.npc-ps-keyword').addEventListener('input', event => {
                 settings.entries[idx].keyword = event.target.value;
@@ -203,6 +226,96 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
             });
 
             container.appendChild(card);
+        });
+    }
+
+    function moveEntry(entryIdx, direction) {
+        const settings = getSettings();
+        const targetIdx = entryIdx + direction;
+        if (entryIdx < 0 || targetIdx < 0 || targetIdx >= settings.entries.length) return;
+
+        const [entry] = settings.entries.splice(entryIdx, 1);
+        settings.entries.splice(targetIdx, 0, entry);
+        saveSettings();
+        onEntriesReordered();
+        renderEntries();
+    }
+
+    function startEntryDrag(event, card, handle, container) {
+        if (!reorderMode || activeDrag) return;
+
+        event.preventDefault();
+        activeDrag = {
+            card,
+            container,
+            handle,
+            pointerId: event.pointerId,
+        };
+        handle.setPointerCapture(event.pointerId);
+        card.classList.add('npc-ps-entry-dragging');
+        container.classList.add('npc-ps-entry-dragging');
+    }
+
+    function moveEntryDrag(event) {
+        if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
+
+        event.preventDefault();
+        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.npc-ps-entry-card');
+        if (!target || target === activeDrag.card || !activeDrag.container.contains(target)) return;
+
+        const targetRect = target.getBoundingClientRect();
+        const distanceX = Math.abs(event.clientX - (targetRect.left + targetRect.width / 2));
+        const distanceY = Math.abs(event.clientY - (targetRect.top + targetRect.height / 2));
+        const insertAfter = distanceX > distanceY
+            ? event.clientX > targetRect.left + targetRect.width / 2
+            : event.clientY > targetRect.top + targetRect.height / 2;
+        if (insertAfter) {
+            if (target.nextElementSibling !== activeDrag.card) {
+                activeDrag.container.insertBefore(activeDrag.card, target.nextElementSibling);
+            }
+        } else if (target.previousElementSibling !== activeDrag.card) {
+            activeDrag.container.insertBefore(activeDrag.card, target);
+        }
+    }
+
+    function finishEntryDrag(event, cancelled = false) {
+        if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
+
+        const drag = activeDrag;
+        activeDrag = null;
+        if (drag.handle.hasPointerCapture(event.pointerId)) drag.handle.releasePointerCapture(event.pointerId);
+        drag.card.classList.remove('npc-ps-entry-dragging');
+        drag.container.classList.remove('npc-ps-entry-dragging');
+
+        if (cancelled) {
+            renderEntries();
+            return;
+        }
+
+        const settings = getSettings();
+        const originalEntries = [...settings.entries];
+        const orderedIndexes = [...drag.container.querySelectorAll('.npc-ps-entry-card')]
+            .map(entryCard => parseInt(entryCard.dataset.index, 10));
+        const reorderedEntries = orderedIndexes.map(index => originalEntries[index]);
+        const changed = reorderedEntries.some((entry, index) => entry !== originalEntries[index]);
+        if (!changed) return;
+
+        settings.entries.splice(0, settings.entries.length, ...reorderedEntries);
+        saveSettings();
+        onEntriesReordered();
+        renderEntries();
+    }
+
+    function updateReorderModeUI() {
+        const toggle = document.getElementById('npc_ps_reorder');
+        const container = document.getElementById('npc_ps_entries');
+        const help = document.querySelector('.npc-ps-reorder-help');
+        toggle?.classList.toggle('active', reorderMode);
+        toggle?.setAttribute('aria-pressed', String(reorderMode));
+        container?.classList.toggle('npc-ps-reorder-mode', reorderMode);
+        help?.classList.toggle('visible', reorderMode);
+        container?.querySelectorAll('.npc-ps-entry-drag-handle').forEach(handle => {
+            handle.disabled = !reorderMode;
         });
     }
 
@@ -269,10 +382,28 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
         });
 
         document.getElementById('npc_ps_scan_chat').addEventListener('click', scanCurrentChat);
+        document.addEventListener('pointermove', moveEntryDrag);
+        document.addEventListener('pointerup', finishEntryDrag);
+        document.addEventListener('pointercancel', event => finishEntryDrag(event, true));
         renderEntries();
     }
 
     function handleDocumentClick(event) {
+        if (event.target.closest('#npc_ps_reorder')) {
+            reorderMode = !reorderMode;
+            updateReorderModeUI();
+            return true;
+        }
+
+        const moveButton = event.target.closest('.npc-ps-entry-move');
+        if (moveButton) {
+            const card = moveButton.closest('.npc-ps-entry-card');
+            const entryIdx = parseInt(card?.dataset.index, 10);
+            const direction = parseInt(moveButton.dataset.direction, 10);
+            if (Number.isInteger(entryIdx) && Number.isInteger(direction)) moveEntry(entryIdx, direction);
+            return true;
+        }
+
         if (event.target.closest('#npc_ps_add')) {
             const settings = getSettings();
             settings.entries.push({ keyword: '', imageData: '', label: '', expressions: [], mentionsBeforeTrigger: 1 });
@@ -288,6 +419,7 @@ export function createSettingsPanel({ getSettings, saveSettings, cropImage, read
                 const settings = getSettings();
                 settings.entries.splice(parseInt(row.dataset.index), 1);
                 saveSettings();
+                onEntriesReordered();
                 renderEntries();
             }
             return true;

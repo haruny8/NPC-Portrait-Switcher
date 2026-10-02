@@ -342,6 +342,88 @@
     background: rgba(255,255,255,0.03);
 }
 
+.npc-ps-entry-drag-handle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 30px;
+    width: 30px;
+    min-width: 30px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.06);
+    color: var(--SmartThemeBodyColor, #dcdcd2);
+    cursor: grab;
+    touch-action: none;
+}
+
+.npc-ps-entry-drag-handle:hover {
+    background: rgba(255,255,255,0.14);
+}
+
+.npc-ps-entry-drag-handle:active {
+    cursor: grabbing;
+}
+
+.npc-ps-entry-order-controls {
+    display: none;
+    flex: 0 0 34px;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.npc-ps-entry-move {
+    width: 34px;
+    height: 27px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    color: var(--SmartThemeBodyColor, #dcdcd2);
+    cursor: pointer;
+}
+
+.npc-ps-entry-move:hover:not(:disabled) {
+    background: rgba(255,255,255,0.14);
+}
+
+.npc-ps-entry-move:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.npc-ps-reorder-mode .npc-ps-entry-drag-handle {
+    display: flex;
+}
+
+.npc-ps-reorder-mode .npc-ps-entry-fields,
+.npc-ps-reorder-mode .npc-ps-entry-preview,
+.npc-ps-reorder-mode .npc-ps-delete {
+    pointer-events: none;
+}
+
+.npc-ps-entry-dragging {
+    cursor: grabbing;
+}
+
+.npc-ps-entry-card.npc-ps-entry-dragging {
+    opacity: 0.65;
+    border-color: var(--SmartThemeQuoteColor, #DEA1C3);
+}
+
+.npc-ps-reorder-help {
+    display: none;
+    margin: -4px 0 8px;
+    font-size: 0.8em;
+    opacity: 0.65;
+}
+
+.npc-ps-reorder-help.visible {
+    display: block;
+}
+
 /* ── Expressions section ── */
 
 .npc-ps-expr-section {
@@ -568,6 +650,19 @@
     dismissible backdrop — never full-screen, never automatic.
    ═══════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+    #npc_ps_reorder,
+    .npc-ps-reorder-help {
+        display: none !important;
+    }
+
+    .npc-ps-entry-order-controls {
+        display: flex;
+    }
+
+    .npc-ps-entry-drag-handle {
+        display: none !important;
+    }
+
     #npc-ps-portrait-panel {
         position: static;
         width: auto;
